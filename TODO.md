@@ -1,23 +1,29 @@
 # Modernization Completion Checklist
 
+**Last Updated:** January 13, 2026  
+**Current Branch:** copilot/update-todo-status-and-status-file  
+**Status Document:** See STATUS.md for detailed progress tracking
+
 The following tasks must be completed before the SDL2-focused adaptation is considered "done." They build on the initial video, CMake, and networking work already started.
 
+**Note:** Items marked (✅ DONE) are completed. Items marked (⚠️ PARTIAL) are in progress. Unmarked items are pending.
+
 ## Build and platform hygiene
-- Collapse duplicate build targets in the root `CMakeLists.txt` and rely on one `add_executable` definition. Ensure options like `NETWORK_BACKEND` and `DOOM_USE_SDL2` are consistent and documented.
-- Keep `linuxdoom-1.10/CMakeLists.txt` centered on one `DOOM_SOURCES` list and the selected backends: SDL2 video, SDL_net when present, or legacy BSD sockets when explicitly chosen. Continue exercising both `NETWORK_BACKEND` variants and document the backend-dependent compile flags in `BUILDING.md`.
+- ✅ **DONE:** Collapse duplicate build targets in the root `CMakeLists.txt` and rely on one `add_executable` definition. Ensure options like `NETWORK_BACKEND` and `DOOM_USE_SDL2` are consistent and documented.
+- ✅ **DONE:** Keep `linuxdoom-1.10/CMakeLists.txt` centered on one `DOOM_SOURCES` list and the selected backends: SDL2 video, SDL_net when present, or legacy BSD sockets when explicitly chosen. Continue exercising both `NETWORK_BACKEND` variants and document the backend-dependent compile flags in `BUILDING.md`.
 - Remove unconditional X11 and legacy SDL1 dependencies from the build graph; verify that configuring with SDL2 video and `-DNETWORK_BACKEND=SDL_NET` succeeds without X11 headers.
 - Add sensible feature toggles for optional components (e.g., MIDI, IPv6) and document them in `BUILDING.md`.
 
 ## Video and input
-- Finalize the SDL2-only video path: retire `i_video_x11.c`/`i_video_sdl.c`, keep `i_video_sdl2.c`, and purge X11/SDL1 conditionals from `v_video.c`, `i_video.h`, `g_game.c`, and HUD modules (`st_*`, `hu_*`).
+- ⚠️ **PARTIAL:** Finalize the SDL2-only video path: retire `i_video_x11.c`/`i_video_sdl.c`, keep `i_video_sdl2.c`, and purge X11/SDL1 conditionals from `v_video.c`, `i_video.h`, `g_game.c`, and HUD modules (`st_*`, `hu_*`). (SDL2 backend exists and is functional; legacy backends still present but deprecated)
 - Handle SDL2 window events (resize/fullscreen/focus) by recreating textures as needed and preserving aspect ratio via logical sizing or letterboxing instead of stretching to the current window size.
 - Ensure window resizing, fullscreen toggles, and input focus changes are handled uniformly via SDL2 events; audit mouse/keyboard code for parity with the legacy backends.
 
 ## Networking
-- Legacy BSD networking now builds without SDL_net; choose a single maintained backend—SDL_net (default via `i_net.c`) or BSD sockets (legacy path guarded by `DOOM_USE_LEGACY_NETWORKING`)—and remove the unused code path from `CMakeLists.txt`.
-- Make `net_harness` honor the selected `NETWORK_BACKEND` instead of always linking the SDL2_net stub; ensure SDL_net is optional when BSD sockets are selected. (DONE)
+- ⚠️ **PARTIAL:** Legacy BSD networking now builds without SDL_net; choose a single maintained backend—SDL_net (default via `i_net.c`) or BSD sockets (legacy path guarded by `DOOM_USE_LEGACY_NETWORKING`)—and remove the unused code path from `CMakeLists.txt`. (Both backends exist; consolidation pending)
+- ✅ **DONE:** Make `net_harness` honor the selected `NETWORK_BACKEND` instead of always linking the SDL2_net stub; ensure SDL_net is optional when BSD sockets are selected.
 - Align `d_net.c`/`d_net.h` and `net_harness.c` with the chosen API (packet structs, init/teardown), and delete `sdl_net_stub/` if SDL_net becomes mandatory. Continue streamlining the shared packet handling once the preferred backend is locked in.
-- Add basic latency/packet-loss handling hooks so multiplayer remains stable on modern networks. Provide tunables for field testing and integrate them with the networking init path. (DONE)
+- ✅ **DONE:** Add basic latency/packet-loss handling hooks so multiplayer remains stable on modern networks. Provide tunables for field testing and integrate them with the networking init path.
 
 ## Audio
 - Unify audio on SDL2 and drop the external `sndserver`: refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively and simplify command-line flags that referenced the helper process.
@@ -38,5 +44,5 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - Add minimal regression checks (even manual scripts) to cover save/load and demo playback across common WADs.
 
 ## Packaging, docs, and polish
-- Update `README.TXT`/`BUILDING.md` with SDL2-only setup steps, dependency lists, and configuration examples.
+- ⚠️ **PARTIAL:** Update `README.TXT`/`BUILDING.md` with SDL2-only setup steps, dependency lists, and configuration examples. (BUILDING.md updated; README.TXT pending)
 - Provide a concise changelog entry summarizing removed backends (X11/SDL1, `sndserver`) and new expectations for users.
