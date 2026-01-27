@@ -3,6 +3,7 @@
 **Last Updated:** January 27, 2026
 **Repository:** 0n1cOn3/-WIP-DOOM
 **Branch:** master
+**Last Commit:** Audio system migrated to SDL2
 
 ## Executive Summary
 
@@ -27,6 +28,11 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 - ✅ **BSD Sockets Fallback**: Legacy BSD networking available via `DOOM_USE_LEGACY_NETWORKING` flag
 - ✅ **Network Harness**: `net_harness` utility honors selected `NETWORK_BACKEND`
 - ✅ **Latency Handling**: Basic latency/packet-loss handling hooks added
+
+### Audio
+- ✅ **SDL2 Audio Backend**: Complete rewrite of `i_sound.c` using SDL2 audio API
+- ✅ **Removed sndserver**: No external process dependencies
+- ✅ **OSS/ALSA Removed**: No legacy audio device driver references
 
 ### Documentation
 - ✅ **BUILDING.md**: Clear build instructions with SDL2 and networking backend examples
@@ -64,11 +70,11 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 - ✅ Verify CMake no longer requires X11 headers
 
 #### 2. Audio Modernization
-- 🔲 Refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively
-- 🔲 Remove external `sndserver` dependency
-- 🔲 Clean mixing in `s_sound.c` and `sounds.c` for 16/32-bit output
-- 🔲 Remove OSS/ALSA/X11-specific audio flags
-- 🔲 Add clear audio diagnostics for startup failures
+- ✅ Refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively
+- ✅ Remove external `sndserver` dependency
+- ⚠️ Clean mixing in `s_sound.c` and `sounds.c` for 16/32-bit output (currently fixed at 11025 Hz stereo)
+- ✅ Remove OSS/ALSA/X11-specific audio flags
+- ✅ Add clear audio diagnostics for startup failures
 
 #### 3. Build System Cleanup
 - 🔲 Remove duplicate/legacy build branches from CMakeLists.txt
@@ -174,15 +180,15 @@ cmake --build build-bsd
 
 ## Current Challenges
 
-1. **X11 Dependencies**: The build configuration may still have lingering X11 dependencies that need to be removed
+1. **Resolution Handling**: Aspect ratio and resolution independence not fully implemented
 
-2. **Multiple Video Backends**: Three video backend implementations exist, but only SDL2 should remain
+2. **Window Events**: SDL2 resize/fullscreen/focus events need proper handling with texture recreation
 
-3. **Audio System**: Still uses legacy paths; needs complete SDL2 migration
+3. **Networking Consolidation**: Both SDL_net and BSD socket paths exist; need to choose one
 
-4. **Resolution Handling**: Aspect ratio and resolution independence not fully implemented
+4. **Testing**: No automated test infrastructure exists; manual testing required
 
-5. **Testing**: No automated test infrastructure exists; manual testing required
+5. **Sample Rate Flexibility**: Audio mixing currently fixed at 11025 Hz; could support configurable rates
 
 ## Recommended Next Steps
 
@@ -190,16 +196,18 @@ cmake --build build-bsd
 1. **Remove Legacy Video Backends**: Deleted `i_video_x11.c` and `i_video_sdl.c`
 2. **Clean Build Dependencies**: Removed X11 from CMake requirements
 3. **Update Video Code**: No X11/SDL1 conditionals in codebase
+4. **Audio Migration**: Refactor `i_sound.c` for SDL2 audio exclusively
+5. **Remove sndserver Dependency**: Deleted external sound server references
 
 ### Immediate (Next PR)
-4. **Audio Migration**: Refactor `i_sound.c` for SDL2 audio only
-5. **Resolution Support**: Implement proper aspect ratio handling
 6. **Window Events**: Add SDL2 resize/fullscreen event handling
+7. **Resolution Support**: Implement proper aspect ratio handling
+8. **Texture Recreation**: Handle window resize with texture rebuild
 
 ### Short Term (Following PRs)
-7. **Networking Consolidation**: Choose and document primary backend
-8. **Documentation**: Update all docs for SDL2-only approach
-9. **Testing**: Verify save/load and demo playback
+9. **Networking Consolidation**: Choose and document primary backend
+10. **Documentation**: Update all docs for SDL2-only approach
+11. **Testing**: Verify save/load and demo playback
 
 ### Medium Term
 7. **Networking Consolidation**: Choose and document primary backend

@@ -26,9 +26,9 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - ✅ **DONE:** Add basic latency/packet-loss handling hooks so multiplayer remains stable on modern networks. Provide tunables for field testing and integrate them with the networking init path.
 
 ## Audio
-- Unify audio on SDL2 and drop the external `sndserver`: refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively and simplify command-line flags that referenced the helper process.
-- Clean up mixing assumptions in `s_sound.c` and `sounds.c` to support 16-bit/32-bit output and configurable sample rates.
-- Confirm the build only links SDL2 audio libraries (no OSS/ALSA/X11-specific flags) and that startup failures surface clear diagnostics.
+- ✅ **DONE:** Unify audio on SDL2 and drop the external `sndserver`: refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively and simplify command-line flags that referenced the helper process.
+- Clean up mixing assumptions in `s_sound.c` and `sounds.c` to support 16-bit/32-bit output and configurable sample rates (currently fixed at 11025 Hz stereo).
+- ✅ **DONE:** Confirm the build only links SDL2 audio libraries (no OSS/ALSA-specific flags) and that startup failures surface clear diagnostics.
 
 ## Game data and content gates
 - Streamline `gamemode`/`gameversion` conditionals in `g_game.c`, `p_setup.c`, and `info.c` so capabilities are explicit and defaults are sensible regardless of WAD flavor.
