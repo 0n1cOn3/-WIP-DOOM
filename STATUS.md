@@ -3,7 +3,7 @@
 **Last Updated:** January 27, 2026
 **Repository:** 0n1cOn3/-WIP-DOOM
 **Branch:** master
-**Last Commit:** Audio system migrated to SDL2
+**Last Commit:** Window event handling and aspect ratio preservation
 
 ## Executive Summary
 
@@ -45,8 +45,8 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 ### Video System
 - ✅ **Legacy Code Removal**: X11 and SDL1 video code removed from repository
 - ✅ **Conditional Compilation**: No X11/SDL1 conditionals remain in codebase
-- ⚠️ **Window Event Handling**: SDL2 resize/fullscreen/focus events need proper handling
-- ⚠️ **Aspect Ratio**: Resolution-independent rendering and aspect ratio preservation incomplete
+- ✅ **Window Event Handling**: SDL2 window events handled (focus, resize with automatic aspect preservation)
+- ✅ **Aspect Ratio**: Automatic 4:3 aspect ratio preservation via SDL_RenderSetLogicalSize()
 
 ### Build Configuration
 - ✅ **X11 Dependencies**: Removed from build; only SDL2 is linked
@@ -83,11 +83,11 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 - 🔲 Ensure SDL2-only builds succeed without X11
 
 #### 4. Rendering & Resolution Support
-- 🔲 Fix aspect handling in `r_main.c`, `r_draw.c`
-- 🔲 Support 4:3 and widescreen without stretching
-- 🔲 Handle SDL2 window resize/fullscreen events
-- 🔲 Audit sprite/patch scaling for resolution independence
-- 🔲 Update HUD rendering for modern displays
+- ✅ Fix aspect handling: Use SDL_RenderSetLogicalSize(320, 240) for 4:3 aspect
+- ✅ Support 4:3 without stretching via automatic letterboxing
+- ✅ Handle SDL2 window resize/fullscreen events with Alt+Enter toggle
+- ⚠️ Audit sprite/patch scaling for resolution independence (rendering is fixed at 320x200)
+- ⚠️ Update HUD rendering for modern displays (works at 320x200, viewport scaling handled)
 
 ### Medium Priority
 
@@ -180,15 +180,15 @@ cmake --build build-bsd
 
 ## Current Challenges
 
-1. **Resolution Handling**: Aspect ratio and resolution independence not fully implemented
+1. **Networking Consolidation**: Both SDL_net and BSD socket paths exist; need to choose one primary backend
 
-2. **Window Events**: SDL2 resize/fullscreen/focus events need proper handling with texture recreation
+2. **Testing**: No automated test infrastructure exists; manual testing required
 
-3. **Networking Consolidation**: Both SDL_net and BSD socket paths exist; need to choose one
+3. **Sample Rate Flexibility**: Audio mixing currently fixed at 11025 Hz; could support configurable rates
 
-4. **Testing**: No automated test infrastructure exists; manual testing required
+4. **Advanced Graphics Features**: Future improvements could include widescreen aspect support, HUD scaling, etc.
 
-5. **Sample Rate Flexibility**: Audio mixing currently fixed at 11025 Hz; could support configurable rates
+5. **Documentation**: README.TXT needs update for SDL2-only setup and capabilities
 
 ## Recommended Next Steps
 
@@ -198,16 +198,17 @@ cmake --build build-bsd
 3. **Update Video Code**: No X11/SDL1 conditionals in codebase
 4. **Audio Migration**: Refactor `i_sound.c` for SDL2 audio exclusively
 5. **Remove sndserver Dependency**: Deleted external sound server references
+6. **Window Events**: Added SDL2 event handling and fullscreen toggle (Alt+Enter)
+7. **Aspect Ratio Support**: Implemented 4:3 aspect preservation via SDL_RenderSetLogicalSize()
+8. **Fullscreen Toggle**: Alt+Enter switches between windowed and fullscreen
 
 ### Immediate (Next PR)
-6. **Window Events**: Add SDL2 resize/fullscreen event handling
-7. **Resolution Support**: Implement proper aspect ratio handling
-8. **Texture Recreation**: Handle window resize with texture rebuild
+9. **Networking Consolidation**: Choose and document primary backend (SDL_net vs BSD)
+10. **Documentation**: Update README.TXT with SDL2-only setup
 
 ### Short Term (Following PRs)
-9. **Networking Consolidation**: Choose and document primary backend
-10. **Documentation**: Update all docs for SDL2-only approach
 11. **Testing**: Verify save/load and demo playback
+12. **Configuration Options**: Add aspect ratio mode selection (command-line flags)
 
 ### Medium Term
 7. **Networking Consolidation**: Choose and document primary backend

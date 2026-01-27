@@ -16,8 +16,8 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 
 ## Video and input
 - ✅ **DONE:** Finalize the SDL2-only video path: retire `i_video_x11.c`/`i_video_sdl.c`, keep `i_video_sdl2.c`, and ensure no X11/SDL1 conditionals remain. (Legacy backends removed from repository; SDL2 is now the only video implementation)
-- Handle SDL2 window events (resize/fullscreen/focus) by recreating textures as needed and preserving aspect ratio via logical sizing or letterboxing instead of stretching to the current window size.
-- Ensure window resizing, fullscreen toggles, and input focus changes are handled uniformly via SDL2 events; audit mouse/keyboard code for completeness.
+- ✅ **DONE:** Handle SDL2 window events (resize/fullscreen/focus) by using logical sizing for aspect ratio preservation instead of stretching to the current window size. (SDL_RenderSetLogicalSize implements automatic letterboxing for 4:3 aspect ratio)
+- ✅ **DONE:** Ensure window resizing, fullscreen toggles (Alt+Enter), and input focus changes are handled uniformly via SDL2 events.
 
 ## Networking
 - ⚠️ **PARTIAL:** Legacy BSD networking now builds without SDL_net; choose a single maintained backend—SDL_net (default via `i_net.c`) or BSD sockets (legacy path guarded by `DOOM_USE_LEGACY_NETWORKING`)—and remove the unused code path from `CMakeLists.txt`. (Both backends exist; consolidation pending)
