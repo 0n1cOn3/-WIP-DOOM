@@ -176,19 +176,42 @@ void P_LoadSegs (int lump)
     li = segs;
     for (i=0 ; i<numsegs ; i++, li++, ml++)
     {
-	li->v1 = &vertexes[SHORT(ml->v1)];
-	li->v2 = &vertexes[SHORT(ml->v2)];
-					
+	int v1_idx = SHORT(ml->v1);
+	int v2_idx = SHORT(ml->v2);
+	if (v1_idx < 0 || v1_idx >= numvertexes)
+	    I_Error("P_LoadSegs: seg %d has invalid v1 index %d (max %d)",
+		    i, v1_idx, numvertexes-1);
+	if (v2_idx < 0 || v2_idx >= numvertexes)
+	    I_Error("P_LoadSegs: seg %d has invalid v2 index %d (max %d)",
+		    i, v2_idx, numvertexes-1);
+	li->v1 = &vertexes[v1_idx];
+	li->v2 = &vertexes[v2_idx];
+
 	li->angle = (SHORT(ml->angle))<<16;
 	li->offset = (SHORT(ml->offset))<<16;
 	linedef = SHORT(ml->linedef);
+	if (linedef < 0 || linedef >= numlines)
+	    I_Error("P_LoadSegs: seg %d has invalid linedef %d (max %d)",
+		    i, linedef, numlines-1);
 	ldef = &lines[linedef];
 	li->linedef = ldef;
 	side = SHORT(ml->side);
+	if (side < 0 || side > 1)
+	    I_Error("P_LoadSegs: seg %d has invalid side %d (must be 0 or 1)",
+		    i, side);
+	if (ldef->sidenum[side] < 0 || ldef->sidenum[side] >= numsides)
+	    I_Error("P_LoadSegs: seg %d linedef %d side %d references invalid sidedef %d (max %d)",
+		    i, linedef, side, ldef->sidenum[side], numsides-1);
 	li->sidedef = &sides[ldef->sidenum[side]];
 	li->frontsector = sides[ldef->sidenum[side]].sector;
 	if (ldef-> flags & ML_TWOSIDED)
-	    li->backsector = sides[ldef->sidenum[side^1]].sector;
+	{
+	    int backside = side^1;
+	    if (ldef->sidenum[backside] < 0 || ldef->sidenum[backside] >= numsides)
+		I_Error("P_LoadSegs: seg %d linedef %d backside %d references invalid back sidedef %d (max %d)",
+			i, linedef, backside, ldef->sidenum[backside], numsides-1);
+	    li->backsector = sides[ldef->sidenum[backside]].sector;
+	}
 	else
 	    li->backsector = 0;
     }
@@ -454,12 +477,22 @@ void P_LoadLineDefs (int lump)
 	ld->sidenum[1] = SHORT(mld->sidenum[1]);
 
 	if (ld->sidenum[0] != -1)
+	{
+	    if (ld->sidenum[0] < 0 || ld->sidenum[0] >= numsides)
+		I_Error("P_LoadLineDefs: linedef %d has invalid front sidedef %d (max %d)",
+			i, ld->sidenum[0], numsides-1);
 	    ld->frontsector = sides[ld->sidenum[0]].sector;
+	}
 	else
 	    ld->frontsector = 0;
 
 	if (ld->sidenum[1] != -1)
+	{
+	    if (ld->sidenum[1] < 0 || ld->sidenum[1] >= numsides)
+		I_Error("P_LoadLineDefs: linedef %d has invalid back sidedef %d (max %d)",
+			i, ld->sidenum[1], numsides-1);
 	    ld->backsector = sides[ld->sidenum[1]].sector;
+	}
 	else
 	    ld->backsector = 0;
     }
@@ -557,7 +590,12 @@ void P_GroupLines (void)
     ss = subsectors;
     for (i=0 ; i<numsubsectors ; i++, ss++)
     {
+	if (ss->firstline >= numsegs)
+	    I_Error("P_GroupLines: subsector %d firstline %d >= numsegs %d",
+		    i, ss->firstline, numsegs);
 	seg = &segs[ss->firstline];
+	if (!seg->sidedef)
+	    I_Error("P_GroupLines: seg %d has NULL sidedef", ss->firstline);
 	ss->sector = seg->sidedef->sector;
     }
 
