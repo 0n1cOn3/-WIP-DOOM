@@ -3,7 +3,7 @@
 **Last Updated:** January 27, 2026
 **Repository:** 0n1cOn3/-WIP-DOOM
 **Branch:** master
-**Last Commit:** Clean audio mixing and build system documentation
+**Last Commit:** Consolidate networking to SDL2_net as primary backend
 
 ## Executive Summary
 
@@ -24,10 +24,11 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 - ✅ **Legacy Backends Removed**: X11 (`i_video_x11.c`) and SDL1 (`i_video_sdl.c`) deleted from repository
 
 ### Networking
-- ✅ **SDL_net Integration**: Default networking through `i_net.c` with SDL_net
-- ✅ **BSD Sockets Fallback**: Legacy BSD networking available via `DOOM_USE_LEGACY_NETWORKING` flag
-- ✅ **Network Harness**: `net_harness` utility honors selected `NETWORK_BACKEND`
-- ✅ **Latency Handling**: Basic latency/packet-loss handling hooks added
+- ✅ **SDL2_net Backend**: Single networking implementation using SDL2_net
+- ✅ **Stub Fallback**: Internal compatibility stub (uses modern APIs, IPv6 support)
+- ✅ **Network Harness**: `net_harness` utility fully functional with SDL2_net
+- ✅ **Latency Handling**: Network simulation (latency/packet loss) integrated
+- ✅ **Legacy Code Removed**: All BSD sockets code removed; DOOM_USE_LEGACY_NETWORKING eliminated
 
 ### Audio
 - ✅ **SDL2 Audio Backend**: Complete rewrite of `i_sound.c` using SDL2 audio API
@@ -57,9 +58,9 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 - ⚠️ **Documentation**: Backend expectations for packagers not fully documented
 
 ### Networking
-- ⚠️ **Backend Consolidation**: Both SDL_net and BSD paths exist; need to choose one primary
-- ⚠️ **API Alignment**: `d_net.c`/`d_net.h` needs alignment with chosen backend
-- ⚠️ **Stub Directory**: `sdl_net_stub/` may be removed if SDL_net becomes mandatory
+- ✅ **Backend Consolidation**: SDL_net established as sole backend; BSD code removed
+- ✅ **API Alignment**: `d_net.c` simplified to use SDL2_net exclusively
+- ✅ **Stub Retention**: `sdl_net_stub/` retained for maximum compatibility
 
 ## What Remains To Be Done 🔲
 
@@ -97,10 +98,10 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 ### Medium Priority
 
 #### 5. Networking Backend Consolidation
-- 🔲 Choose primary backend (SDL_net recommended)
-- 🔲 Remove unused networking code path
-- 🔲 Align `d_net.c`/`d_net.h` with chosen API
-- 🔲 Consider removing `sdl_net_stub/` if SDL_net is mandatory
+- ✅ Chose SDL_net as primary and only backend
+- ✅ Removed BSD sockets code path from i_net.c and d_net.c
+- ✅ Simplified CMakeLists.txt to remove NETWORK_BACKEND option
+- ✅ Retained sdl_net_stub for maximum compatibility (superior to legacy BSD code)
 
 #### 6. Game Data & Content Gates
 - 🔲 Streamline `gamemode`/`gameversion` conditionals
@@ -185,13 +186,11 @@ cmake --build build-bsd
 
 ## Current Challenges
 
-1. **Networking Backend Decision**: Both SDL_net and BSD sockets paths exist; need to choose one primary and remove the other
+1. **Automated Testing**: No regression test suite; manual testing required for save/load and demo playback
 
-2. **Automated Testing**: No regression test suite; manual testing required for save/load and demo playback
+2. **Advanced Graphics Features**: Future enhancements could include widescreen support, HUD scaling for modern resolutions
 
-3. **Advanced Graphics Features**: Future enhancements could include widescreen support, HUD scaling for modern resolutions
-
-4. **Documentation**: README.TXT needs comprehensive update documenting SDL2-only setup, capabilities, and known limitations
+3. **Documentation**: README.TXT needs comprehensive update documenting SDL2-only setup, capabilities, and known limitations
 
 ## Recommended Next Steps
 
@@ -207,11 +206,12 @@ cmake --build build-bsd
 9. **Audio Cleaning**: Removed legacy 8-bit code paths; documented format (11025 Hz, 16-bit stereo)
 10. **Build System Documentation**: Updated BUILDING.md with audio and network backend options
 11. **CMakeLists Cleanup**: Removed references to deleted legacy backends
+12. **Networking Consolidation**: Chose SDL_net as single backend; removed BSD sockets code
+13. **Network Backend Cleanup**: Simplified CMakeLists.txt; removed NETWORK_BACKEND option
+14. **Network Code Modernization**: Updated i_net.c, d_net.c to use SDL2_net exclusively
 
 ### Immediate (Next PR)
-12. **Networking Consolidation**: Choose and document primary backend (SDL_net recommended)
-13. **Remove Unused Network Path**: Delete either SDL_net or BSD sockets code
-14. **Update README.TXT**: Document SDL2-only setup and capabilities
+15. **Update README.TXT**: Document SDL2-only setup and capabilities
 
 ### Short Term (Following PRs)
 15. **Testing**: Verify save/load and demo playback with SDL2 backend

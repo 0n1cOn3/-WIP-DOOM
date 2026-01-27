@@ -83,14 +83,50 @@ Licensed under the GNU General Public License 2.0.
 Modern build
 ============
 A CMake-based build is available for modern toolchains and package managers.
-The default backend is SDL2 (Wayland-friendly). Install SDL2 development
-headers (eg. `libsdl2-dev` on Debian/Ubuntu) and run:
+This project has been fully modernized to use SDL2 for all platform interfaces.
 
+BUILD REQUIREMENTS
+------------------
+- CMake 3.16 or newer
+- SDL2 development headers (libsdl2-dev on Debian/Ubuntu)
+- SDL2_net development headers (libsdl2-net-dev on Debian/Ubuntu) - optional,
+  an internal compatibility stub is used if unavailable
+
+BUILDING
+--------
     cmake -S . -B build
     cmake --build build
 
-The project now targets SDL2 exclusively for video and input. The deprecated
-X11 pathway has been retired from the CMake build; use SDL2-capable systems
-for future updates.
-
 The resulting binary is written to `build/bin/linuxdoom`.
+
+SDL2 MODERNIZATION
+-------------------
+This version of DOOM has been modernized to use SDL2 for all platform interfaces:
+
+* Video/Graphics: SDL2 video backend with automatic 4:3 aspect ratio preservation
+  and fullscreen support (toggle with Alt+Enter). Works on X11, Wayland, and
+  other SDL2-supported display servers.
+
+* Audio: SDL2 audio backend providing 11025 Hz, 16-bit stereo output. No external
+  sound server process required.
+
+* Networking: SDL2_net for multiplayer networking with full IPv6 support. An
+  internal compatibility stub is automatically used if SDL2_net is not available
+  on the system.
+
+* Input: SDL2 event handling for keyboard and mouse input with proper event
+  queuing and window focus management.
+
+LEGACY SUPPORT REMOVED
+----------------------
+The following legacy platform-specific code has been removed:
+- X11 video backend (replaced by SDL2)
+- SDL1 video backend (replaced by SDL2)
+- OSS/ALSA audio drivers (replaced by SDL2)
+- sndserver external sound process dependency
+- BSD sockets networking (replaced by SDL2_net)
+
+The X11 pathway and legacy sound server are no longer available. Use SDL2-capable
+systems for this version of DOOM.
+
+For further build details, see BUILDING.md

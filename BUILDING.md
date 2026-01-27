@@ -1,13 +1,7 @@
 # Building linuxdoom
 
-This project now targets SDL2 for video, input, and audio. The build system supports
-flexible configuration via CMake options.
-
-## Build Options
-
-- `NETWORK_BACKEND`: Network implementation to use
-  - `SDL_NET` (default): Use SDL_net library for multiplayer networking
-  - `BSD`: Use BSD sockets (traditional sockets API, no SDL_net dependency)
+This project uses SDL2 for all platform interfaces: video, input, audio, and networking.
+The build system is designed to work out-of-the-box with minimal configuration.
 
 ## Prerequisites
 
@@ -19,23 +13,27 @@ selected backends:
 - SDL_net networking (default): `libsdl2-net-dev`
 - BSD networking: typically provided by libc
 
-## Example configurations
-
-Wayland-friendly (default) SDL2 build with SDL_net networking:
+## Example build
 
 ```bash
 cmake -S . -B build
 cmake --build build
 ```
 
-SDL2 video with BSD networking:
+Build artifacts are written to `build/bin` directory.
 
-```bash
-cmake -S . -B build-bsd -DNETWORK_BACKEND=BSD
-cmake --build build-bsd
-```
+## Network Configuration
 
-Build artifacts are written to `build/bin` (or the chosen build directory).
+The project uses SDL2_net for all multiplayer networking:
+
+- **System SDL2_net Library**: If available on your system, the build will use the system SDL2_net library
+- **Automatic Fallback**: If SDL2_net is not installed, an internal compatibility stub is automatically used
+- **No Configuration Needed**: The CMake build system automatically detects and configures networking
+
+## Network Backend Details
+
+The internal SDL_net stub uses modern socket APIs (`getaddrinfo`) and supports both IPv4 and IPv6.
+This provides excellent compatibility for systems without SDL2_net installed.
 
 ## Audio Configuration
 

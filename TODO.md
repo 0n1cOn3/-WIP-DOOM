@@ -20,10 +20,11 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - ✅ **DONE:** Ensure window resizing, fullscreen toggles (Alt+Enter), and input focus changes are handled uniformly via SDL2 events.
 
 ## Networking
-- ⚠️ **PARTIAL:** Legacy BSD networking now builds without SDL_net; choose a single maintained backend—SDL_net (default via `i_net.c`) or BSD sockets (legacy path guarded by `DOOM_USE_LEGACY_NETWORKING`)—and remove the unused code path from `CMakeLists.txt`. (Both backends exist; consolidation pending)
-- ✅ **DONE:** Make `net_harness` honor the selected `NETWORK_BACKEND` instead of always linking the SDL2_net stub; ensure SDL_net is optional when BSD sockets are selected.
-- Align `d_net.c`/`d_net.h` and `net_harness.c` with the chosen API (packet structs, init/teardown), and delete `sdl_net_stub/` if SDL_net becomes mandatory. Continue streamlining the shared packet handling once the preferred backend is locked in.
-- ✅ **DONE:** Add basic latency/packet-loss handling hooks so multiplayer remains stable on modern networks. Provide tunables for field testing and integrate them with the networking init path.
+- ✅ **DONE:** Chose SDL_net as the single maintained backend and removed BSD sockets code path from i_net.c and d_net.c.
+- ✅ **DONE:** Removed `NETWORK_BACKEND` CMake option; SDL_net is now the only networking backend.
+- ✅ **DONE:** Aligned `d_net.c` with SDL_net API (simplified `ReadNetUint32()` to use `SDLNet_Read32()` exclusively).
+- ✅ **DONE:** Retained `sdl_net_stub/` for systems without SDL2_net package (superior to legacy BSD code with modern APIs and IPv6 support).
+- ✅ **DONE:** Network latency/packet-loss handling hooks integrated for testing and field deployment.
 
 ## Audio
 - ✅ **DONE:** Unify audio on SDL2 and drop the external `sndserver`: refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively and simplify command-line flags that referenced the helper process.

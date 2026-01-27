@@ -6,9 +6,6 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
-set(NETWORK_BACKEND "SDL_NET" CACHE STRING "Network backend: BSD or SDL_NET")
-set_property(CACHE NETWORK_BACKEND PROPERTY STRINGS BSD SDL_NET)
-
 set(SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 file(GLOB DOOM_SOURCES
@@ -30,54 +27,43 @@ find_package(SDL2 REQUIRED)
 list(APPEND VIDEO_SOURCES ${SOURCE_DIR}/i_video_sdl2.c)
 list(APPEND VIDEO_LIBS SDL2::SDL2)
 
-if(NETWORK_BACKEND STREQUAL "SDL_NET")
-  find_package(PkgConfig QUIET)
-  find_package(SDL2_net QUIET)
+# Network backend: SDL2_net
+# If system SDL2_net is not available, use internal compatibility stub
+find_package(PkgConfig QUIET)
+find_package(SDL2_net QUIET)
 
-  if(NOT SDL2_net_FOUND AND PkgConfig_FOUND)
-    pkg_check_modules(SDL2NET SDL2_net)
-    if(SDL2NET_FOUND)
-      add_library(SDL2_net::SDL2_net INTERFACE IMPORTED)
-      target_include_directories(SDL2_net::SDL2_net INTERFACE ${SDL2NET_INCLUDE_DIRS})
-      target_link_libraries(SDL2_net::SDL2_net INTERFACE ${SDL2NET_LIBRARIES})
-    endif()
+if(NOT SDL2_net_FOUND AND PkgConfig_FOUND)
+  pkg_check_modules(SDL2NET SDL2_net)
+  if(SDL2NET_FOUND)
+    add_library(SDL2_net::SDL2_net INTERFACE IMPORTED)
+    target_include_directories(SDL2_net::SDL2_net INTERFACE ${SDL2NET_INCLUDE_DIRS})
+    target_link_libraries(SDL2_net::SDL2_net INTERFACE ${SDL2NET_LIBRARIES})
   endif()
-
-  if(NOT TARGET SDL2_net::SDL2_net)
-    set(STUB_INCLUDE_ROOT ${CMAKE_BINARY_DIR}/generated_stub_includes)
-    file(MAKE_DIRECTORY ${STUB_INCLUDE_ROOT}/SDL2)
-    configure_file(
-      ${SOURCE_DIR}/sdl_net_stub/SDL_net.h
-      ${STUB_INCLUDE_ROOT}/SDL2/SDL_net.h
-      COPYONLY
-    )
-    configure_file(
-      ${SOURCE_DIR}/sdl_net_stub/SDL_net.h
-      ${STUB_INCLUDE_ROOT}/SDL_net.h
-      COPYONLY
-    )
-
-    add_library(SDL2_net_stub STATIC
-      ${SOURCE_DIR}/sdl_net_stub/SDL_net_stub.c)
-    target_include_directories(SDL2_net_stub PUBLIC ${STUB_INCLUDE_ROOT})
-    add_library(SDL2_net::SDL2_net ALIAS SDL2_net_stub)
-    set(NET_INCLUDE_DIRS ${STUB_INCLUDE_ROOT})
-  endif()
-
-  list(APPEND NET_SOURCES ${SOURCE_DIR}/i_net.c)
-  list(APPEND NET_LIBS SDL2_net::SDL2_net)
-elseif(NETWORK_BACKEND STREQUAL "BSD")
-  list(APPEND NET_SOURCES ${SOURCE_DIR}/i_net.c)
-  list(APPEND NET_COMPILE_DEFS DOOM_USE_LEGACY_NETWORKING)
-  # Optional network services library is not always present on modern
-  # distributions, so link it only when CMake finds it.
-  find_library(NSL_LIBRARY nsl)
-  if(NSL_LIBRARY)
-    list(APPEND NET_LIBS ${NSL_LIBRARY})
-  endif()
-else()
-  message(FATAL_ERROR "Unsupported NETWORK_BACKEND '${NETWORK_BACKEND}'. Use BSD or SDL_NET.")
 endif()
+
+if(NOT TARGET SDL2_net::SDL2_net)
+  set(STUB_INCLUDE_ROOT ${CMAKE_BINARY_DIR}/generated_stub_includes)
+  file(MAKE_DIRECTORY ${STUB_INCLUDE_ROOT}/SDL2)
+  configure_file(
+    ${SOURCE_DIR}/sdl_net_stub/SDL_net.h
+    ${STUB_INCLUDE_ROOT}/SDL2/SDL_net.h
+    COPYONLY
+  )
+  configure_file(
+    ${SOURCE_DIR}/sdl_net_stub/SDL_net.h
+    ${STUB_INCLUDE_ROOT}/SDL_net.h
+    COPYONLY
+  )
+
+  add_library(SDL2_net_stub STATIC
+    ${SOURCE_DIR}/sdl_net_stub/SDL_net_stub.c)
+  target_include_directories(SDL2_net_stub PUBLIC ${STUB_INCLUDE_ROOT})
+  add_library(SDL2_net::SDL2_net ALIAS SDL2_net_stub)
+  set(NET_INCLUDE_DIRS ${STUB_INCLUDE_ROOT})
+endif()
+
+list(APPEND NET_SOURCES ${SOURCE_DIR}/i_net.c)
+list(APPEND NET_LIBS SDL2_net::SDL2_net)
 
 add_executable(linuxdoom
   ${DOOM_SOURCES}
