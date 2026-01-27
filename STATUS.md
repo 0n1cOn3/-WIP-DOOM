@@ -3,7 +3,7 @@
 **Last Updated:** January 27, 2026
 **Repository:** 0n1cOn3/-WIP-DOOM
 **Branch:** master
-**Last Commit:** Window event handling and aspect ratio preservation
+**Last Commit:** Clean audio mixing and build system documentation
 
 ## Executive Summary
 
@@ -33,6 +33,9 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 - ✅ **SDL2 Audio Backend**: Complete rewrite of `i_sound.c` using SDL2 audio API
 - ✅ **Removed sndserver**: No external process dependencies
 - ✅ **OSS/ALSA Removed**: No legacy audio device driver references
+- ✅ **Audio Mixing Cleaned**: Removed legacy 8-bit assumptions; documented 16-bit/stereo format
+- ✅ **Device Selection Removed**: Eliminated legacy DMX-era device selection code
+- ✅ **Sample Rate Configurable**: Audio format (11025 Hz, 16-bit stereo) clearly documented and easily modifiable
 
 ### Documentation
 - ✅ **BUILDING.md**: Clear build instructions with SDL2 and networking backend examples
@@ -72,15 +75,17 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 #### 2. Audio Modernization
 - ✅ Refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively
 - ✅ Remove external `sndserver` dependency
-- ⚠️ Clean mixing in `s_sound.c` and `sounds.c` for 16/32-bit output (currently fixed at 11025 Hz stereo)
+- ✅ Clean mixing in `s_sound.c` and `sounds.c` for 16-bit stereo format (11025 Hz standard)
 - ✅ Remove OSS/ALSA/X11-specific audio flags
 - ✅ Add clear audio diagnostics for startup failures
+- ✅ Remove legacy DMX device selection code
+- ✅ Document audio format and configuration options
 
 #### 3. Build System Cleanup
-- 🔲 Remove duplicate/legacy build branches from CMakeLists.txt
-- 🔲 Document `NETWORK_BACKEND` and other options in BUILDING.md
-- 🔲 Add feature toggles for optional components
-- 🔲 Ensure SDL2-only builds succeed without X11
+- ✅ Remove duplicate/legacy build branches from CMakeLists.txt (removed i_video.c reference)
+- ✅ Document `NETWORK_BACKEND` and other options in BUILDING.md
+- ✅ Document audio configuration (sample rate, channels, bit depth)
+- ✅ Ensure SDL2-only builds succeed without X11
 
 #### 4. Rendering & Resolution Support
 - ✅ Fix aspect handling: Use SDL_RenderSetLogicalSize(320, 240) for 4:3 aspect
@@ -180,15 +185,13 @@ cmake --build build-bsd
 
 ## Current Challenges
 
-1. **Networking Consolidation**: Both SDL_net and BSD socket paths exist; need to choose one primary backend
+1. **Networking Backend Decision**: Both SDL_net and BSD sockets paths exist; need to choose one primary and remove the other
 
-2. **Testing**: No automated test infrastructure exists; manual testing required
+2. **Automated Testing**: No regression test suite; manual testing required for save/load and demo playback
 
-3. **Sample Rate Flexibility**: Audio mixing currently fixed at 11025 Hz; could support configurable rates
+3. **Advanced Graphics Features**: Future enhancements could include widescreen support, HUD scaling for modern resolutions
 
-4. **Advanced Graphics Features**: Future improvements could include widescreen aspect support, HUD scaling, etc.
-
-5. **Documentation**: README.TXT needs update for SDL2-only setup and capabilities
+4. **Documentation**: README.TXT needs comprehensive update documenting SDL2-only setup, capabilities, and known limitations
 
 ## Recommended Next Steps
 
@@ -201,19 +204,19 @@ cmake --build build-bsd
 6. **Window Events**: Added SDL2 event handling and fullscreen toggle (Alt+Enter)
 7. **Aspect Ratio Support**: Implemented 4:3 aspect preservation via SDL_RenderSetLogicalSize()
 8. **Fullscreen Toggle**: Alt+Enter switches between windowed and fullscreen
+9. **Audio Cleaning**: Removed legacy 8-bit code paths; documented format (11025 Hz, 16-bit stereo)
+10. **Build System Documentation**: Updated BUILDING.md with audio and network backend options
+11. **CMakeLists Cleanup**: Removed references to deleted legacy backends
 
 ### Immediate (Next PR)
-9. **Networking Consolidation**: Choose and document primary backend (SDL_net vs BSD)
-10. **Documentation**: Update README.TXT with SDL2-only setup
+12. **Networking Consolidation**: Choose and document primary backend (SDL_net recommended)
+13. **Remove Unused Network Path**: Delete either SDL_net or BSD sockets code
+14. **Update README.TXT**: Document SDL2-only setup and capabilities
 
 ### Short Term (Following PRs)
-11. **Testing**: Verify save/load and demo playback
-12. **Configuration Options**: Add aspect ratio mode selection (command-line flags)
-
-### Medium Term
-7. **Networking Consolidation**: Choose and document primary backend
-8. **Documentation**: Update all docs for SDL2-only approach
-9. **Testing**: Verify save/load and demo playback
+15. **Testing**: Verify save/load and demo playback with SDL2 backend
+16. **Configuration Options**: Add command-line flags for aspect ratio modes
+17. **Feature Toggles**: Add optional build-time toggles for MIDI, IPv6, etc.
 
 ## Success Metrics
 

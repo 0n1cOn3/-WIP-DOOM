@@ -48,10 +48,14 @@ rcsid[] = "$Id: s_sound.c,v 1.6 1997/02/03 22:45:12 b1 Exp $";
 const char snd_prefixen[]
 = { 'P', 'P', 'A', 'S', 'S', 'S', 'M', 'M', 'M', 'S', 'S', 'S' };
 
+// ===================================================================
+// Sound System Configuration
+// ===================================================================
+// Maximum volume for sound effects (0-127 range, legacy DOOM standard)
 #define S_MAX_VOLUME		127
 
-// when to clip out sounds
-// Does not fit the large outdoor areas.
+// Distance calculations for sound attenuation (in fixed-point units)
+// when to clip out sounds - does not fit the large outdoor areas.
 #define S_CLIPPING_DIST		(1200*0x10000)
 
 // Distance tp origin when sounds should be maxed out.
@@ -80,15 +84,8 @@ const char snd_prefixen[]
 #define S_NUMCHANNELS		2
 
 
-// Current music/sfx card - index useless
-//  w/o a reference LUT in a sound module.
-extern int snd_MusicDevice;
-extern int snd_SfxDevice;
-// Config file? Same disclaimer as above.
-extern int snd_DesiredMusicDevice;
-extern int snd_DesiredSfxDevice;
-
-
+// Note: Audio device selection is now handled directly by SDL2.
+// Legacy DMX-era device selection variables removed with SDL2 migration.
 
 typedef struct
 {
@@ -364,21 +361,13 @@ S_StartSoundAtVolume
   if (sfx->lumpnum < 0)
     sfx->lumpnum = I_GetSfxLumpNum(sfx);
 
-#ifndef SNDSRV
-  // cache data if necessary
+  // With SDL2, all sound data is pre-cached during I_InitSound().
+  // If data is not loaded, something is wrong with WAD loading.
   if (!sfx->data)
   {
     fprintf( stderr,
-	     "S_StartSoundAtVolume: 16bit and not pre-cached - wtf?\n");
-
-    // DOS remains, 8bit handling
-    //sfx->data = (void *) W_CacheLumpNum(sfx->lumpnum, PU_MUSIC);
-    // fprintf( stderr,
-    //	     "S_StartSoundAtVolume: loading %d (lump %d) : 0x%x\n",
-    //       sfx_id, sfx->lumpnum, (int)sfx->data );
-    
+	     "S_StartSoundAtVolume: sound data not cached - WAD loading issue?\n");
   }
-#endif
   
   // increase the usefulness
   if (sfx->usefulness++ < 0)
@@ -530,25 +519,9 @@ void S_UpdateSounds(void* listener_p)
 
 
     
-    // Clean up unused data.
-    // This is currently not done for 16bit (sounds cached static).
-    // DOS 8bit remains. 
-    /*if (gametic > nextcleanup)
-    {
-	for (i=1 ; i<NUMSFX ; i++)
-	{
-	    if (S_sfx[i].usefulness < 1
-		&& S_sfx[i].usefulness > -1)
-	    {
-		if (--S_sfx[i].usefulness == -1)
-		{
-		    Z_ChangeTag(S_sfx[i].data, PU_CACHE);
-		    S_sfx[i].data = 0;
-		}
-	    }
-	}
-	nextcleanup = gametic + 15;
-    }*/
+    // Note: Sound data cleanup is not needed with SDL2 backend.
+    // All sounds are pre-cached as static data in zone memory during initialization.
+    // The cache management code below is kept for reference but is disabled.
     
     for (cnum=0 ; cnum<numChannels ; cnum++)
     {

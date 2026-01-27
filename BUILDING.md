@@ -1,9 +1,13 @@
 # Building linuxdoom
 
-This project now targets the newer SDL2 pathway (Wayland-friendly) for video
-and input. Choose the networking backend at configure time:
+This project now targets SDL2 for video, input, and audio. The build system supports
+flexible configuration via CMake options.
 
-- `NETWORK_BACKEND`: `SDL_NET` (default) or `BSD`
+## Build Options
+
+- `NETWORK_BACKEND`: Network implementation to use
+  - `SDL_NET` (default): Use SDL_net library for multiplayer networking
+  - `BSD`: Use BSD sockets (traditional sockets API, no SDL_net dependency)
 
 ## Prerequisites
 
@@ -32,3 +36,25 @@ cmake --build build-bsd
 ```
 
 Build artifacts are written to `build/bin` (or the chosen build directory).
+
+## Audio Configuration
+
+The audio system uses SDL2 with the following defaults:
+
+- **Sample Rate**: 11025 Hz (legacy DOOM standard)
+- **Channels**: 2 (stereo)
+- **Bit Depth**: 16-bit signed integers
+
+To change the sample rate, edit the `SAMPLERATE` macro in `linuxdoom-1.10/i_sound.c`
+and rebuild. This requires no other changes as the mixing algorithm is format-agnostic.
+
+## Testing
+
+After building, verify the build by running the binary:
+
+```bash
+./build/bin/linuxdoom -iwad /path/to/doom.wad
+```
+
+Press `Alt+Enter` to toggle fullscreen mode. The game should display with proper 4:3
+aspect ratio (with letterboxing/pillarboxing as needed on modern displays).

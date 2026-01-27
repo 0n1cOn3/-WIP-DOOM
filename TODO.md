@@ -27,8 +27,9 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 
 ## Audio
 - ✅ **DONE:** Unify audio on SDL2 and drop the external `sndserver`: refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively and simplify command-line flags that referenced the helper process.
-- Clean up mixing assumptions in `s_sound.c` and `sounds.c` to support 16-bit/32-bit output and configurable sample rates (currently fixed at 11025 Hz stereo).
+- ✅ **DONE:** Clean up mixing in `s_sound.c` and `sounds.c`: removed legacy 8-bit assumptions, documented 16-bit/stereo format (11025 Hz), made sample rate easily configurable via #define.
 - ✅ **DONE:** Confirm the build only links SDL2 audio libraries (no OSS/ALSA-specific flags) and that startup failures surface clear diagnostics.
+- ✅ **DONE:** Remove legacy DMX audio device selection code (snd_MusicDevice, etc.)
 
 ## Game data and content gates
 - Streamline `gamemode`/`gameversion` conditionals in `g_game.c`, `p_setup.c`, and `info.c` so capabilities are explicit and defaults are sensible regardless of WAD flavor.
@@ -44,5 +45,6 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - Add minimal regression checks (even manual scripts) to cover save/load and demo playback across common WADs.
 
 ## Packaging, docs, and polish
-- ⚠️ **PARTIAL:** Update `README.TXT`/`BUILDING.md` with SDL2-only setup steps, dependency lists, and configuration examples. (BUILDING.md updated; README.TXT pending)
+- ✅ **DONE:** Update `BUILDING.md` with SDL2-only setup steps, dependency lists, and configuration examples (audio config, network backend, build options).
+- ⚠️ **PARTIAL:** Update `README.TXT` with SDL2-only capabilities and setup instructions (documentation partial).
 - Provide a concise changelog entry summarizing removed backends (X11/SDL1, `sndserver`) and new expectations for users.

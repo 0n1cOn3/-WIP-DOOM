@@ -34,10 +34,29 @@
 #include "doomstat.h"
 
 // Audio parameters
+// ===================================================================
+// Audio Configuration
+// ===================================================================
+// The audio system uses the following fixed format via SDL2:
+//   - Sample Rate: 11025 Hz (legacy DOOM standard)
+//   - Channels: 2 (stereo)
+//   - Bit Depth: 16-bit signed integers (AUDIO_S16)
+//   - Max Concurrent Sounds: 8 channels
+//
+// This format is optimized for compatibility with original DOOM sound
+// effects and provides acceptable quality on modern systems. The low
+// sample rate was chosen in the original to match console hardware and
+// reduces CPU overhead for sound mixing.
+//
+// To change sample rate: modify SAMPLERATE below and rebuild.
+// To change channels: modify NUM_CHANNELS and audio_spec.channels in I_InitSound().
+// Note: Changing these will require recompiling sound effects in WAD files.
+// ===================================================================
+
 #define NUM_CHANNELS		8
 #define SAMPLECOUNT		512
-#define SAMPLERATE		11025	// Hz
-#define SAMPLESIZE		2   	// 16bit
+#define SAMPLERATE		11025	// Hz (original DOOM legacy standard)
+#define SAMPLESIZE		2   	// 16-bit signed integer
 #define BUFMUL                  4
 #define MIXBUFFERSIZE		(SAMPLECOUNT*BUFMUL)
 
