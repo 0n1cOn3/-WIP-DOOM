@@ -1191,13 +1191,22 @@ void G_WorldDone (void)
     }
 } 
  
-void G_DoWorldDone (void) 
-{        
-    gamestate = GS_LEVEL; 
-    gamemap = wminfo.next+1; 
-    G_DoLoadLevel (); 
-    gameaction = ga_nothing; 
-    viewactive = true; 
+void G_DoWorldDone (void)
+{
+    gamestate = GS_LEVEL;
+    gamemap = wminfo.next+1;
+
+    // Perform autosave if enabled (single-player only)
+    extern int autosave_enable;
+    if (autosave_enable && !netgame && usergame)
+    {
+        // Save to autosave slot (slot 5 reserved for autosave)
+        G_SaveGame(5, "[AUTOSAVE]");
+    }
+
+    G_DoLoadLevel ();
+    gameaction = ga_nothing;
+    viewactive = true;
 } 
  
 

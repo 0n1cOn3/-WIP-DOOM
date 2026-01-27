@@ -88,6 +88,9 @@ int			screenblocks;		// has default
 // Multiplayer UI verbosity (0 = friendly, 1 = show detailed session info)
 int                     mp_verbose_info;        // has default
 
+// Autosave settings: 0 = disabled, 1 = enabled (saved to slot 5)
+int			autosave_enable;        // has default (0 = off)
+
 // Multiplayer lobby runtime (Phase 4).
 static int mp_lobby_inflight = 0;
 static int mp_lobby_launched = 0;
@@ -229,6 +232,7 @@ void M_SfxVol(int choice);
 void M_MusicVol(int choice);
 void M_MusicBackend(int choice);
 void M_ChangeDetail(int choice);
+void M_ChangeAutosave(int choice);
 void M_StartGame(int choice);
 void M_Sound(int choice);
 void M_OpenDisplay(int choice);
@@ -436,6 +440,7 @@ enum
     displayopt,
     networkopt,
     gameinst,
+    autosave_opt,
     opt_end
 } options_e;
 
@@ -450,7 +455,8 @@ menuitem_t OptionsMenu[]=
     {-1,"",0},
     {1,"",		M_OpenDisplay,'d'},
     {1,"",		M_OpenNetwork,'n'},
-    {1,"",		M_ReadThis,'i'}
+    {1,"",		M_ReadThis,'i'},
+    {1,"",		M_ChangeAutosave,'a'}
 };
 
 menu_t  OptionsDef =
@@ -1229,6 +1235,10 @@ void M_DrawOptions(void)
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*displayopt, "DISPLAY SETTINGS");
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*networkopt, "NETWORK SETTINGS");
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*gameinst, "GAME INSTRUCTIONS");
+
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*autosave_opt, "AUTOSAVE");
+    sprintf(option_text, "%s", autosave_enable ? "ON" : "OFF");
+    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT*autosave_opt, option_text);
 }
 
 void M_DrawDisplay(void)
@@ -2143,13 +2153,20 @@ void M_ChangeMessages(int choice)
     // warning: unused parameter `int choice'
     choice = 0;
     showMessages = 1 - showMessages;
-	
+
     if (!showMessages)
 	players[consoleplayer].message = MSGOFF;
     else
 	players[consoleplayer].message = MSGON ;
 
     message_dontfuckwithme = true;
+}
+
+void M_ChangeAutosave(int choice)
+{
+    // warning: unused parameter `int choice'
+    choice = 0;
+    autosave_enable = 1 - autosave_enable;
 }
 
 
