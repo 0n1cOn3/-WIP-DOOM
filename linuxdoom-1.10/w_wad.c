@@ -457,15 +457,8 @@ W_ReadLump
     else
 	handle = l->handle;
 
-    fprintf(stderr, "W_ReadLump: Reading lump %d at file offset %d, size %d into %p\n",
-	    lump, l->position, l->size, dest);
-    fflush(stderr);
-
     lseek (handle, l->position, SEEK_SET);
     c = read (handle, dest, l->size);
-
-    fprintf(stderr, "W_ReadLump: Read %d bytes (expected %d)\n", c, l->size);
-    fflush(stderr);
 
     if (c < l->size)
 	I_Error ("W_ReadLump: only read %i of %i on lump %i",
@@ -499,17 +492,8 @@ W_CacheLumpNum
 	
 	//printf ("cache miss on lump %i\n",lump);
 	int lumplen = W_LumpLength (lump);
-	fprintf(stderr, "W_CacheLumpNum: Loading lump %d (%s), size=%d, tag=%d\n",
-		lump, lumpinfo[lump].name, lumplen, tag);
-	fflush(stderr);
 	ptr = Z_Malloc (lumplen, tag, &lumpcache[lump]);
-	fprintf(stderr, "  After Z_Malloc: lumpcache[%d]=%p ptr=%p ptr_returned=%p\n",
-		lump, lumpcache[lump], ptr, *(void**)&lumpcache[lump]);
-	fflush(stderr);
 	W_ReadLump (lump, lumpcache[lump]);
-	fprintf(stderr, "W_CacheLumpNum: Loaded lump %d (%s) successfully at %p\n",
-		lump, lumpinfo[lump].name, lumpcache[lump]);
-	fflush(stderr);
     }
     else
     {
