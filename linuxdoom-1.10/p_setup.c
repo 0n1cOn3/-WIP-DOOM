@@ -305,10 +305,21 @@ void P_LoadThings (int lump)
     mapthing_t*		mt;
     int			numthings;
     boolean		spawn;
-	
+    int			lumplen;
+
     data = W_CacheLumpNum (lump,PU_STATIC);
-    numthings = W_LumpLength (lump) / sizeof(mapthing_t);
-	
+    lumplen = W_LumpLength (lump);
+
+    // Bounds checking
+    if (lumplen < 0 || lumplen > 1024*1024)
+	I_Error ("P_LoadThings: invalid lump length %d", lumplen);
+
+    numthings = lumplen / sizeof(mapthing_t);
+
+    fprintf(stderr, "P_LoadThings: Loading %d things from lump %d, buffer=%p, size=%d\n",
+	    numthings, lump, data, lumplen);
+    fflush(stderr);
+
     mt = (mapthing_t *)data;
     for (i=0 ; i<numthings ; i++, mt++)
     {
@@ -336,16 +347,24 @@ void P_LoadThings (int lump)
 	if (spawn == false)
 	    break;
 
-	// Do spawn all other stuff. 
+	// Do spawn all other stuff.
 	mt->x = SHORT(mt->x);
 	mt->y = SHORT(mt->y);
 	mt->angle = SHORT(mt->angle);
 	mt->type = SHORT(mt->type);
 	mt->options = SHORT(mt->options);
-	
+
+	if (i % 10 == 0) {
+	    fprintf(stderr, "P_LoadThings: Spawning thing %d (type=%d)\n", i, mt->type);
+	    fflush(stderr);
+	}
+
 	P_SpawnMapThing (mt);
     }
-	
+
+    fprintf(stderr, "P_LoadThings: Spawned all %d things successfully\n", i);
+    fflush(stderr);
+
     Z_Free (data);
 }
 

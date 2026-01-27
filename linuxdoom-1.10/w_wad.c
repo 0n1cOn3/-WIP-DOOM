@@ -457,8 +457,15 @@ W_ReadLump
     else
 	handle = l->handle;
 
+    fprintf(stderr, "W_ReadLump: Reading lump %d at file offset %d, size %d into %p\n",
+	    lump, l->position, l->size, dest);
+    fflush(stderr);
+
     lseek (handle, l->position, SEEK_SET);
     c = read (handle, dest, l->size);
+
+    fprintf(stderr, "W_ReadLump: Read %d bytes (expected %d)\n", c, l->size);
+    fflush(stderr);
 
     if (c < l->size)
 	I_Error ("W_ReadLump: only read %i of %i on lump %i",
