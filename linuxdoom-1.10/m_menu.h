@@ -54,7 +54,10 @@ void M_Init (void);
 // does nothing if menu is already up.
 void M_StartControlPanel (void);
 
-
+// Scans WAD for available maps in an episode
+// Used for dynamic level/map selection
+// Returns number of maps found, fills available_maps array
+int M_ScanAvailableMaps(int episode, int* available_maps, int max_maps);
 
 
 

@@ -997,6 +997,48 @@ void M_NewGame(int choice)
 //
 int     epi;
 
+//
+// M_ScanAvailableMaps
+// Scans the WAD file for available maps in a given episode
+// Returns the number of available maps found
+// For use in dynamic level/map selection systems
+//
+int M_ScanAvailableMaps(int episode, int* available_maps, int max_maps)
+{
+    int count = 0;
+    int map_num;
+    char lump_name[9];
+
+    // For episode-based games (DOOM I), scan E#M# format
+    // For commercial (DOOM II), scan MAP## format
+    if (gamemode == commercial)
+    {
+        // DOOM II: scan for MAP01-MAP32 (or more in PWADs)
+        for (map_num = 1; map_num <= 99 && count < max_maps; map_num++)
+        {
+            sprintf(lump_name, "MAP%02d", map_num);
+            if (W_CheckNumForName(lump_name) >= 0)
+            {
+                available_maps[count++] = map_num;
+            }
+        }
+    }
+    else
+    {
+        // Episode-based games: scan E#M# format
+        for (map_num = 1; map_num <= 9 && count < max_maps; map_num++)
+        {
+            sprintf(lump_name, "E%dM%d", episode, map_num);
+            if (W_CheckNumForName(lump_name) >= 0)
+            {
+                available_maps[count++] = map_num;
+            }
+        }
+    }
+
+    return count;
+}
+
 void M_DrawEpisode(void)
 {
     V_DrawPatchDirect (54,38,0,W_CacheLumpName("M_EPISOD",PU_CACHE));
