@@ -1,6 +1,6 @@
 build/
 build-*/
-build_no_*/
+build_no_asan*/
 cmake-build-*/
 out/
 dist/
