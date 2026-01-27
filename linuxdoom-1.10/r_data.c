@@ -446,12 +446,17 @@ void R_InitTextures (void)
 
     
     // Load the patch names from pnames.lmp.
-    name[8] = 0;	
+    name[8] = 0;
     names = W_CacheLumpName ("PNAMES", PU_STATIC);
     nummappatches = LONG ( *((int *)names) );
+
+    // Bounds checking for patch count
+    if (nummappatches < 0 || nummappatches > 32767)
+	I_Error("R_InitTextures: invalid patch count %d", nummappatches);
+
     name_p = names+4;
     patchlookup = alloca (nummappatches*sizeof(*patchlookup));
-    
+
     for (i=0 ; i<nummappatches ; i++)
     {
 	strncpy (name,name_p+i*8, 8);
@@ -464,13 +469,23 @@ void R_InitTextures (void)
     //  TEXTURE1 for shareware, plus TEXTURE2 for commercial.
     maptex = maptex1 = W_CacheLumpName ("TEXTURE1", PU_STATIC);
     numtextures1 = LONG(*maptex);
+
+    // Bounds checking for texture count
+    if (numtextures1 < 0 || numtextures1 > 32767)
+	I_Error("R_InitTextures: invalid texture1 count %d", numtextures1);
+
     maxoff = W_LumpLength (W_GetNumForName ("TEXTURE1"));
     directory = maptex+1;
-	
+
     if (W_CheckNumForName ("TEXTURE2") != -1)
     {
 	maptex2 = W_CacheLumpName ("TEXTURE2", PU_STATIC);
 	numtextures2 = LONG(*maptex2);
+
+	// Bounds checking for texture2 count
+	if (numtextures2 < 0 || numtextures2 > 32767)
+	    I_Error("R_InitTextures: invalid texture2 count %d", numtextures2);
+
 	maxoff2 = W_LumpLength (W_GetNumForName ("TEXTURE2"));
     }
     else

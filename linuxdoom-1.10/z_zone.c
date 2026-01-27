@@ -55,7 +55,18 @@ typedef struct
     
 } memzone_t;
 
+// Allocation tracking for debugging
+#define ALLOC_LOG_SIZE 20
+typedef struct {
+    void* ptr;
+    int size;
+    int tag;
+    const char* location;
+} alloc_record_t;
 
+static alloc_record_t alloc_log[ALLOC_LOG_SIZE];
+static int alloc_log_index = 0;
+static int alloc_log_count = 0;
 
 memzone_t*	mainzone;
 
@@ -123,11 +134,36 @@ void Z_Free (void* ptr)
 {
     memblock_t*		block;
     memblock_t*		other;
-	
+
     block = (memblock_t *) ( (byte *)ptr - sizeof(memblock_t));
 
     if (block->id != ZONEID)
+    {
+	int i;
+	fprintf(stderr, "Z_Free: CORRUPTED BLOCK DETECTED\n");
+	fprintf(stderr, "  ptr=%p\n", ptr);
+	fprintf(stderr, "  block=%p\n", (void *)block);
+	fprintf(stderr, "  block->id=0x%x (expected 0x%x)\n", block->id, ZONEID);
+	fprintf(stderr, "  block->size=%d\n", block->size);
+	fprintf(stderr, "  block->user=%p\n", block->user);
+	fprintf(stderr, "  block->tag=%d\n", block->tag);
+	fprintf(stderr, "  block->next=%p\n", (void *)block->next);
+	fprintf(stderr, "  block->prev=%p\n", (void *)block->prev);
+	fprintf(stderr, "\nRecent allocations:\n");
+	for (i = 0; i < alloc_log_count; i++) {
+	    int idx = (alloc_log_index - alloc_log_count + i + ALLOC_LOG_SIZE) % ALLOC_LOG_SIZE;
+	    byte* end_addr = (byte*)alloc_log[idx].ptr + alloc_log[idx].size;
+	    fprintf(stderr, "  [%d] ptr=%p end=%p size=%d tag=%d",
+		    i, alloc_log[idx].ptr, (void*)end_addr, alloc_log[idx].size, alloc_log[idx].tag);
+	    if ((byte*)ptr >= (byte*)alloc_log[idx].ptr &&
+		(byte*)ptr < end_addr) {
+		fprintf(stderr, " <- LIKELY SOURCE OF CORRUPTION");
+	    }
+	    fprintf(stderr, "\n");
+	}
+	fflush(stderr);
 	I_Error ("Z_Free: freed a pointer without ZONEID");
+    }
 		
     if (block->user > (void **)0x100)
     {
@@ -281,11 +317,22 @@ Z_Malloc
     base->tag = tag;
 
     // next allocation will start looking here
-    mainzone->rover = base->next;	
-	
+    mainzone->rover = base->next;
+
     base->id = ZONEID;
-    
-    return (void *) ((byte *)base + sizeof(memblock_t));
+
+    // Log allocation for debugging
+    {
+	void* result_ptr = (void *) ((byte *)base + sizeof(memblock_t));
+	alloc_log[alloc_log_index].ptr = result_ptr;
+	alloc_log[alloc_log_index].size = size - sizeof(memblock_t);
+	alloc_log[alloc_log_index].tag = tag;
+	alloc_log[alloc_log_index].location = "Z_Malloc";
+	alloc_log_index = (alloc_log_index + 1) % ALLOC_LOG_SIZE;
+	if (alloc_log_count < ALLOC_LOG_SIZE)
+	    alloc_log_count++;
+	return result_ptr;
+    }
 }
 
 

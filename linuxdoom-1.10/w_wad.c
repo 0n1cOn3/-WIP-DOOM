@@ -436,14 +436,18 @@ W_ReadLump
     int		c;
     lumpinfo_t*	l;
     int		handle;
-	
+
     if (lump >= numlumps)
 	I_Error ("W_ReadLump: %i >= numlumps",lump);
 
     l = lumpinfo+lump;
-	
+
+    // Bounds checking for lump size
+    if (l->size < 0 || l->size > 1024*1024*100)  // 100MB max
+	I_Error ("W_ReadLump: invalid lump %i size %d", lump, l->size);
+
     // ??? I_BeginRead ();
-	
+
     if (l->handle == -1)
     {
 	// reloadable file, so use open / read / close
@@ -452,17 +456,17 @@ W_ReadLump
     }
     else
 	handle = l->handle;
-		
+
     lseek (handle, l->position, SEEK_SET);
     c = read (handle, dest, l->size);
 
     if (c < l->size)
 	I_Error ("W_ReadLump: only read %i of %i on lump %i",
-		 c,l->size,lump);	
+		 c,l->size,lump);
 
     if (l->handle == -1)
 	close (handle);
-		
+
     // ??? I_EndRead ();
 }
 
@@ -487,8 +491,15 @@ W_CacheLumpNum
 	// read the lump in
 	
 	//printf ("cache miss on lump %i\n",lump);
-	ptr = Z_Malloc (W_LumpLength (lump), tag, &lumpcache[lump]);
+	int lumplen = W_LumpLength (lump);
+	fprintf(stderr, "W_CacheLumpNum: Loading lump %d (%s), size=%d, tag=%d\n",
+		lump, lumpinfo[lump].name, lumplen, tag);
+	fflush(stderr);
+	ptr = Z_Malloc (lumplen, tag, &lumpcache[lump]);
 	W_ReadLump (lump, lumpcache[lump]);
+	fprintf(stderr, "W_CacheLumpNum: Loaded lump %d (%s) successfully at %p\n",
+		lump, lumpinfo[lump].name, lumpcache[lump]);
+	fflush(stderr);
     }
     else
     {
@@ -509,6 +520,16 @@ W_CacheLumpName
 ( char*		name,
   int		tag )
 {
+    // Bounds checking for lump name parameter
+    if (name == NULL)
+	I_Error("W_CacheLumpName: name is NULL");
+
+    if (strlen(name) == 0)
+	I_Error("W_CacheLumpName: name is empty string");
+
+    if (strlen(name) > 8)
+	I_Error("W_CacheLumpName: name too long (>8 chars): %s", name);
+
     return W_CacheLumpNum (W_GetNumForName(name), tag);
 }
 
