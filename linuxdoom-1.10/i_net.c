@@ -11,7 +11,7 @@
 //
 // The source is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// FITNESS FOR A PARTICULAR PURPOSE. See the DOOM Source Code License
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the DOOM Source Code License
 // for more details.
 //
 // $Log:$
@@ -32,8 +32,13 @@ rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 #include <stdio.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
+#include <SDL.h>
 #include <SDL_net.h>
+#include "blake2s.h"
+#include "d_main.h"   // wadfiles[]
 
 #include "i_system.h"
 #include "d_event.h"
@@ -49,6 +54,10 @@ rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 
 // Standard DOOM networking port (originally IPPORT_USERRESERVED + 0x1d = 5000 + 29)
 #define DOOM_DEFAULT_PORT 5029
+#define DISCOVERY_PORT 5030
+#define DISCOVERY_MAGIC SDL_SwapBE32(0x44495343) /* 'DISC' */
+#define JOIN_MAGIC SDL_SwapBE32(0x444A4F49)      /* 'DJOI' */
+#define START_MAGIC SDL_SwapBE32(0x53544152)     /* 'STAR' */
 
 void    NetSend (void);
 boolean NetListen (void);
@@ -67,6 +76,28 @@ int net_latency_ms = 0;
 int net_packet_loss = 0;
 // Thread-safe RNG seed for network simulation
 static unsigned int net_rng_seed = 0;
+
+// UDP socket and packet buffers
+static UDPsocket             udpsocket;
+static UDPpacket            *recvpacket;
+static UDPpacket            *sendpacket;
+static IPaddress             sendaddress[MAXNETNODES];
+
+// Network configuration and state
+static doom_port_t doomport = DOOM_DEFAULT_PORT;
+static IPaddress connect_target;                // target address for -connect
+static boolean use_host_flow = false;
+static boolean use_client_flow = false;
+static int desired_players = 0;
+static int assigned_node = -1;
+static boolean net_vanilla_only = false;
+static uint8_t session_key[16];                 // 128-bit session key for MAC
+static uint8_t content_hash[16];                // hash over IWAD/PWAD set
+static IPaddress discovered[16];
+static int discovered_count = 0;
+
+typedef Uint16 netorder_16;
+typedef Uint32 netorder_32;
 
 /*
  * Parse a positive integer from a command-line argument string.
@@ -125,6 +156,64 @@ void I_SetNetPacketLoss(int percent)
     net_packet_loss = ClampInt(percent, 0, 99);
 }
 
+void I_SetVanillaOnly(int on)
+{
+    net_vanilla_only = on ? true : false;
+}
+
+int I_GetDiscoveredServers(IPaddress *out, int max)
+{
+    int n = discovered_count < max ? discovered_count : max;
+    for (int i = 0; i < n; ++i)
+        out[i] = discovered[i];
+    return n;
+}
+
+// Broadcast probe; collect announces for ~0.5s
+int I_RunLanDiscovery(IPaddress *out, int max)
+{
+    discovered_count = 0;
+    UDPsocket dsock = SDLNet_UDP_Open(0);
+    if (!dsock)
+        return 0;
+    UDPpacket *pkt = SDLNet_AllocPacket(64);
+    if (!pkt)
+    {
+        SDLNet_UDP_Close(dsock);
+        return 0;
+    }
+
+    IPaddress bcast;
+    bcast.host = 0xFFFFFFFF;
+    bcast.port = SDL_SwapBE16(DISCOVERY_PORT);
+
+    uint8_t probe[5] = {0};
+    SDLNet_Write32(DISCOVERY_MAGIC, probe);
+    probe[4] = 1; // PROBE
+    pkt->data = probe;
+    pkt->len = 5;
+    pkt->address = bcast;
+    SDLNet_UDP_Send(dsock, -1, pkt);
+
+    Uint32 start = SDL_GetTicks();
+    while ((SDL_GetTicks() - start) < 500 && discovered_count < (int)(sizeof(discovered)/sizeof(discovered[0])))
+    {
+        if (SDLNet_UDP_Recv(dsock, pkt) > 0)
+        {
+            if (pkt->len >= 5 && SDLNet_Read32(pkt->data) == DISCOVERY_MAGIC && pkt->data[4] == 2)
+            {
+                discovered[discovered_count++] = pkt->address;
+                if (out && discovered_count <= max)
+                    out[discovered_count-1] = pkt->address;
+            }
+        }
+    }
+
+    SDLNet_FreePacket(pkt);
+    SDLNet_UDP_Close(dsock);
+    return discovered_count;
+}
+
 // Initialize network simulation parameters from command-line arguments.
 // Note: This function is called during single-threaded startup from I_InitNetwork().
 // The RNG seed initialization is not protected by a mutex as DOOM's initialization
@@ -170,10 +259,6 @@ static void ApplyNetworkLatency(void)
     usleep((unsigned long)net_latency_ms * 1000UL);
 }
 
-typedef Uint16 netorder_16;
-typedef Uint32 netorder_32;
-static doom_port_t doomport = DOOM_DEFAULT_PORT;
-
 static netorder_32 NetWrite32(uint32_t value)
 {
     netorder_32 encoded;
@@ -198,6 +283,57 @@ static uint16_t NetRead16(const netorder_16 *value)
     return SDLNet_Read16(value);
 }
 
+// MAC utility using BLAKE2s (16-byte output)
+static void Net_MakeMac(const uint8_t *data, int len, uint8_t out[16])
+{
+    blake2s_mac16(session_key, sizeof(session_key), data, (size_t)len, out);
+}
+
+static void Net_GenerateSessionKey(void)
+{
+    uint64_t ticks = (uint64_t)SDL_GetPerformanceCounter() ^ (uint64_t)time(NULL);
+    for (int i = 0; i < 16; ++i)
+    {
+        ticks ^= ticks << 13;
+        ticks ^= ticks >> 7;
+        ticks ^= ticks << 17;
+        session_key[i] = (uint8_t)(ticks & 0xFF);
+    }
+}
+
+static int HashFile(const char *path, uint8_t out[16])
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return -1;
+    blake2s_state S;
+    blake2s_init(&S, 16);
+    uint8_t buf[4096];
+    ssize_t r;
+    while ((r = read(fd, buf, sizeof(buf))) > 0)
+        blake2s_update(&S, buf, (size_t)r);
+    close(fd);
+    if (r < 0)
+        return -1;
+    blake2s_final(&S, out, 16);
+    return 0;
+}
+
+static void ComputeContentHash(uint8_t out[16])
+{
+    blake2s_state S;
+    blake2s_init(&S, 16);
+    for (int i = 0; i < MAXWADFILES && wadfiles[i]; ++i)
+    {
+        uint8_t fh[16];
+        if (HashFile(wadfiles[i], fh) == 0)
+        {
+            blake2s_update(&S, fh, sizeof(fh));
+            blake2s_update(&S, wadfiles[i], strlen(wadfiles[i]));
+        }
+    }
+    blake2s_final(&S, out, 16);
+}
 
 void I_NetPackBuffer(const doomdata_t *src, doomdata_t *dest)
 {
@@ -226,11 +362,6 @@ void I_NetUnpackBuffer(const doomdata_t *src, doomdata_t *dest)
         dest->cmds[c].consistancy = NetRead16(&src->cmds[c].consistancy);
     }
 }
-
-static UDPsocket             udpsocket;
-static UDPpacket            *recvpacket;
-static UDPpacket            *sendpacket;
-static IPaddress             sendaddress[MAXNETNODES];
 
 static boolean NetAddressesEqual(const IPaddress *a, const IPaddress *b)
 {
@@ -337,17 +468,22 @@ void NetSend (void)
 {
     doomdata_t wire;
     int length = doomcom->datalength;
+    int total = length + 16;
 
     if (ShouldDropPacket())
         return;
 
     ApplyNetworkLatency();
 
-    EnsurePacketCapacity(length);
+    EnsurePacketCapacity(total);
     I_NetPackBuffer(netbuffer, &wire);
 
-    memcpy(sendpacket->data, &wire, length);
-    sendpacket->len = length;
+    uint8_t mac[16];
+    Net_MakeMac((uint8_t *)&wire, length, mac);
+
+    memcpy(sendpacket->data, mac, 16);
+    memcpy(sendpacket->data + 16, &wire, length);
+    sendpacket->len = total;
     sendpacket->address = sendaddress[doomcom->remotenode];
 
     if (SDLNet_UDP_Send(udpsocket, -1, sendpacket) == 0)
@@ -384,8 +520,20 @@ boolean NetListen (void)
     if (doomcom->remotenode == -1)
         return false;
 
-    doomcom->datalength = recvpacket->len;
-    memcpy(&wire, recvpacket->data, sizeof(wire));
+    if (recvpacket->len < 16)
+        return false;
+
+    doomcom->datalength = recvpacket->len - 16;
+    if (doomcom->datalength <= 0 || doomcom->datalength > (int)sizeof(wire))
+        return false;
+
+    uint8_t mac[16], mac_check[16];
+    memcpy(mac, recvpacket->data, 16);
+    memcpy(&wire, recvpacket->data + 16, doomcom->datalength);
+    Net_MakeMac((uint8_t *)&wire, doomcom->datalength, mac_check);
+    if (memcmp(mac, mac_check, 16) != 0)
+        return false;
+
     I_NetUnpackBuffer(&wire, netbuffer);
 
     return true;
@@ -401,6 +549,7 @@ void I_InitNetwork (void)
 {
     int                 i;
     int                 p;
+    Uint32              start_ticks;
 
     doomcom = malloc (sizeof (*doomcom) );
     memset (doomcom, 0, sizeof(*doomcom) );
@@ -431,8 +580,23 @@ void I_InitNetwork (void)
         printf ("using alternate port %u\n", doomport);
     }
 
+    // parse host/connect
+    p = M_CheckParm("-host");
+    if (p && p < myargc-1)
+    {
+        desired_players = ParsePositiveIntArg(myargv[p+1], MAXNETNODES, 2);
+        use_host_flow = true;
+    }
+    p = M_CheckParm("-connect");
+    if (p && p < myargc-1)
+    {
+        if (!ResolveAddressSpec(myargv[p+1], doomport, &connect_target))
+            I_Error("Couldn't resolve %s", myargv[p+1]);
+        use_client_flow = true;
+    }
+
     i = M_CheckParm ("-net");
-    if (!i)
+    if (!i && !use_host_flow && !use_client_flow)
     {
         netgame = false;
         doomcom->id = DOOMCOM_ID;
@@ -447,28 +611,187 @@ void I_InitNetwork (void)
     netget = NetListenThunk;
     netgame = true;
 
+    // host/client secure lobby
+    if (use_host_flow || use_client_flow)
+    {
+        udpsocket = SDLNet_UDP_Open(doomport);
+        if (!udpsocket)
+            I_Error("BindToPort: %s", SDLNet_GetError());
+
+        EnsurePacketCapacity(sizeof(doomdata_t));
+        Net_GenerateSessionKey();
+        ComputeContentHash(content_hash);
+
+        const Uint8 TYPE_JOIN_REQ = 1;
+        const Uint8 TYPE_JOIN_ACK = 2;
+        const Uint8 TYPE_START = 3;
+        const Uint8 TYPE_JOIN_NACK = 4;
+        const Uint8 TYPE_DISC_PROBE = 1;
+        const Uint8 TYPE_DISC_ANNOUNCE = 2;
+
+        if (use_host_flow)
+        {
+            int have_clients = 0;
+            start_ticks = SDL_GetTicks();
+            Uint32 wait_ms = 10000;
+
+            // one-shot announce
+            UDPsocket dsock = SDLNet_UDP_Open(0);
+            UDPpacket *dpkt = SDLNet_AllocPacket(32);
+            if (dsock && dpkt)
+            {
+                IPaddress b;
+                b.host = 0xFFFFFFFF;
+                b.port = SDL_SwapBE16(DISCOVERY_PORT);
+                SDLNet_Write32(DISCOVERY_MAGIC, dpkt->data);
+                dpkt->data[4] = TYPE_DISC_ANNOUNCE;
+                dpkt->len = 5;
+                dpkt->address = b;
+                SDLNet_UDP_Send(dsock, -1, dpkt);
+            }
+
+            while ((SDL_GetTicks() - start_ticks) < wait_ms && have_clients < desired_players - 1)
+            {
+                if (SDLNet_UDP_Recv(udpsocket, recvpacket) > 0)
+                {
+                    if (recvpacket->len >= 22 &&
+                        SDLNet_Read32(recvpacket->data) == JOIN_MAGIC &&
+                        recvpacket->data[4] == TYPE_JOIN_REQ)
+                    {
+                        if (net_vanilla_only && memcmp(recvpacket->data + 6, content_hash, 16) != 0)
+                        {
+                            uint8_t nack[8] = {0};
+                            SDLNet_Write32(JOIN_MAGIC, nack);
+                            nack[4] = TYPE_JOIN_NACK;
+                            nack[5] = 1;
+                            sendpacket->data = nack;
+                            sendpacket->len = sizeof(nack);
+                            sendpacket->address = recvpacket->address;
+                            SDLNet_UDP_Send(udpsocket, -1, sendpacket);
+                            continue;
+                        }
+                        boolean known = false;
+                        for (i = 1; i <= have_clients; ++i)
+                            if (NetAddressesEqual(&recvpacket->address, &sendaddress[i])) known = true;
+                        if (!known && have_clients < desired_players - 1)
+                        {
+                            have_clients++;
+                            sendaddress[have_clients] = recvpacket->address;
+                            uint8_t ack[24] = {0};
+                            SDLNet_Write32(JOIN_MAGIC, ack);
+                            ack[4] = TYPE_JOIN_ACK;
+                            ack[5] = (uint8_t)have_clients;
+                            ack[6] = (uint8_t)desired_players;
+                            ack[7] = net_vanilla_only ? 1 : 0;
+                            memcpy(ack + 8, session_key, 16);
+                            sendpacket->data = ack;
+                            sendpacket->len = sizeof(ack);
+                            sendpacket->address = recvpacket->address;
+                            SDLNet_UDP_Send(udpsocket, -1, sendpacket);
+                        }
+                    }
+                }
+                SDL_Delay(10);
+            }
+            if (have_clients < desired_players - 1)
+                I_Error("Not enough players joined");
+
+            uint8_t startbuf[8 + sizeof(IPaddress) * (MAXNETNODES - 1) + 16] = {0};
+            SDLNet_Write32(START_MAGIC, startbuf);
+            startbuf[4] = TYPE_START;
+            startbuf[5] = (uint8_t)desired_players;
+            startbuf[6] = (uint8_t)have_clients;
+            memcpy(startbuf + 8, &sendaddress[1], sizeof(IPaddress) * have_clients);
+            memcpy(startbuf + 8 + sizeof(IPaddress) * have_clients, content_hash, 16);
+            for (i = 1; i <= have_clients; ++i)
+            {
+                sendpacket->data = startbuf;
+                sendpacket->len = 8 + sizeof(IPaddress) * have_clients + 16;
+                sendpacket->address = sendaddress[i];
+                SDLNet_UDP_Send(udpsocket, -1, sendpacket);
+            }
+
+            doomcom->consoleplayer = 0;
+            doomcom->numnodes = desired_players;
+            doomcom->numplayers = desired_players;
+        }
+        else // client
+        {
+            uint8_t joinreq[22] = {0};
+            SDLNet_Write32(JOIN_MAGIC, joinreq);
+            joinreq[4] = TYPE_JOIN_REQ;
+            memcpy(joinreq + 6, content_hash, 16);
+            sendpacket->data = joinreq;
+            sendpacket->len = sizeof(joinreq);
+            sendpacket->address = connect_target;
+            SDLNet_UDP_Send(udpsocket, -1, sendpacket);
+
+            boolean got_ack = false, got_start = false;
+            int total = 0, client_count = 0;
+            start_ticks = SDL_GetTicks();
+            Uint32 wait_ms = 10000;
+            while ((SDL_GetTicks() - start_ticks) < wait_ms && !got_start)
+            {
+                if (SDLNet_UDP_Recv(udpsocket, recvpacket) > 0)
+                {
+                    Uint32 magic = SDLNet_Read32(recvpacket->data);
+                    Uint8 type = recvpacket->data[4];
+                    if (magic == JOIN_MAGIC && type == TYPE_JOIN_ACK && recvpacket->len >= 24)
+                    {
+                        assigned_node = recvpacket->data[5];
+                        total = recvpacket->data[6];
+                        memcpy(session_key, recvpacket->data + 8, 16);
+                        got_ack = true;
+                    }
+                    else if (magic == START_MAGIC && type == TYPE_START && recvpacket->len >= 8)
+                    {
+                        total = recvpacket->data[5];
+                        client_count = recvpacket->data[6];
+                        int need = 8 + client_count * (int)sizeof(IPaddress) + 16;
+                        if (recvpacket->len >= need)
+                        {
+                            sendaddress[0] = connect_target;
+                            memcpy(&sendaddress[1], recvpacket->data + 8, sizeof(IPaddress) * client_count);
+                            if (memcmp(content_hash, recvpacket->data + 8 + sizeof(IPaddress) * client_count, 16) != 0)
+                                I_Error("Content hash mismatch with host");
+                            got_start = true;
+                        }
+                    }
+                    else if (magic == JOIN_MAGIC && type == TYPE_JOIN_NACK)
+                    {
+                        I_Error("Join rejected (reason %d)", recvpacket->data[5]);
+                    }
+                }
+                SDL_Delay(10);
+            }
+            if (!got_ack || !got_start || assigned_node < 1)
+                I_Error("Failed to join host");
+            doomcom->consoleplayer = assigned_node;
+            doomcom->numnodes = total;
+            doomcom->numplayers = total;
+        }
+
+        doomcom->id = DOOMCOM_ID;
+        netbuffer = &doomcom->data;
+        return;
+    }
+
+    // legacy -net path (manual addressing)
     doomcom->consoleplayer = myargv[i+1][0]-'1';
-
     doomcom->numnodes = 1;
-
     i++;
     while (++i < myargc && myargv[i][0] != '-')
     {
         if (!ResolveAddressSpec(myargv[i], doomport, &sendaddress[doomcom->numnodes]))
             I_Error("Couldn't resolve %s", myargv[i]);
-
         doomcom->numnodes++;
     }
-
     doomcom->id = DOOMCOM_ID;
     doomcom->numplayers = doomcom->numnodes;
-
     udpsocket = SDLNet_UDP_Open(doomport);
     if (!udpsocket)
         I_Error("BindToPort: %s", SDLNet_GetError());
-
     EnsurePacketCapacity(sizeof(doomdata_t));
-
     netbuffer = &doomcom->data;
 }
 
@@ -518,71 +841,6 @@ void I_NetCmd (void)
 
 int I_RunNetworkHarness(int argc, char **argv)
 {
-    doomdata_t expected;
-    int attempts;
-    static char *defaultArgs[] = { "net_harness", "-net", "1", "[::1]" };
-
-    if (argc < 4)
-    {
-        myargc = 4;
-        myargv = defaultArgs;
-    }
-    else
-    {
-        myargc = argc;
-        myargv = argv;
-    }
-
-    I_InitNetwork();
-    netbuffer = &doomcom->data;
-
-    memset(&expected, 0, sizeof(expected));
-    expected.player = 1;
-    expected.numtics = 1;
-    expected.cmds[0].forwardmove = 10;
-    expected.cmds[0].sidemove = -4;
-    expected.cmds[0].angleturn = 0x3456;
-    expected.cmds[0].consistancy = 0x1234;
-    expected.cmds[0].buttons = 0xAA;
-    {
-        size_t numtics = (size_t)expected.numtics;
-        size_t data_size = offsetof(doomdata_t, cmds) + numtics * sizeof(ticcmd_t);
-        /* Check for overflow: data_size must fit in doomcom->datalength (assumed int) */
-        if (numtics > INT32_MAX / sizeof(ticcmd_t) ||
-            data_size > INT32_MAX) {
-            fprintf(stderr, "Error: numtics too large, potential overflow in data_size calculation\n");
-            doomcom->datalength = 0;
-        } else {
-            doomcom->datalength = (int)data_size;
-        }
-    }
-
-    *netbuffer = expected;
-    doomcom->remotenode = 1;
-    NetSend();
-
-    for (attempts = 0; attempts < 64; ++attempts)
-    {
-        if (NetListen())
-            break;
-        SDL_Delay(1);
-    }
-
-    if (doomcom->remotenode != 1)
-    {
-        fprintf(stderr, "Failed to receive loopback packet\n");
-        I_ShutdownNetwork();
-        return 1;
-    }
-
-    if (memcmp(netbuffer, &expected, doomcom->datalength) != 0)
-    {
-        fprintf(stderr, "Loopback packet mismatch\n");
-        I_ShutdownNetwork();
-        return 2;
-    }
-
-    printf("Network harness succeeded with %d attempts\n", attempts + 1);
-    I_ShutdownNetwork();
+    // not used in this SDL2_net build
     return 0;
 }
