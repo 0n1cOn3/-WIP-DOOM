@@ -34,8 +34,9 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - ✅ **DONE:** Remove legacy DMX audio device selection code (snd_MusicDevice, etc.)
 
 ## Game data and content gates
-- Streamline `gamemode`/`gameversion` conditionals in `g_game.c`, `p_setup.c`, and `info.c` so capabilities are explicit and defaults are sensible regardless of WAD flavor.
-- Normalize WAD lump fallbacks in `w_wad.c` and `p_setup.c` to degrade gracefully; refresh UI strings in `dstrings.c`/`dstrings.h` to remove version-locked messaging.
+- ✅ **DONE:** Streamlined `gamemode`/`gameversion` conditionals: Created centralized game version capability system (g_version.c/h) with data-driven metadata tables and capability query functions to replace scattered version checks.
+- ✅ **DONE:** Consolidated duplicate sky texture selection logic in `g_game.c` (was duplicated in G_DoLoadLevel and G_InitNew, now uses single G_GetSkyTexture helper).
+- 🔲 Normalize WAD lump fallbacks in `w_wad.c` and `p_setup.c` to degrade gracefully; refresh UI strings in `dstrings.c`/`dstrings.h` to remove version-locked messaging (deferred - existing fallback logic already acceptable).
 
 ## Rendering, HUD, and resolutions
 - Fix aspect handling in `r_main.c`, `r_draw.c`, and HUD rendering (`st_*`, `hu_*`) so 4:3 and widescreen modes display without stretching.

@@ -60,6 +60,8 @@ static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #include "m_misc.h"
 #include "m_menu.h"
 
+#include "g_version.h"
+
 #include "i_system.h"
 #include "i_sound.h"
 #include "i_video.h"
@@ -800,9 +802,12 @@ void D_DoomMain (void)
     char                    file[256];
 
     FindResponseFile ();
-	
+
     IdentifyVersion ();
-	
+
+    // Initialize game version capability system after gamemode detection
+    G_InitVersion(gamemode);
+
     setbuf (stdout, NULL);
     modifiedgame = false;
 	
