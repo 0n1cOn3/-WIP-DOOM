@@ -47,6 +47,6 @@ compile_commands.json
 build-make/
 _codeql_build_dir/
 _codeql_detected_source_root
-*.dsg
+doomsav0.dsg
 DEBUGGING.md
 legacy/
