@@ -5,6 +5,7 @@
 //
 //-----------------------------------------------------------------------------
 
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +32,35 @@ static int ScreenHeight = SCREENHEIGHT;
 
 static int mouse_button_state = 0;
 static int fullscreen_mode = 0;
+
+static void I_GetRenderDestRect(SDL_Rect *dest)
+{
+    int output_width = 0;
+    int output_height = 0;
+    if (SDL_GetRendererOutputSize(renderer, &output_width, &output_height) != 0 ||
+        output_width <= 0 || output_height <= 0)
+    {
+        dest->x = 0;
+        dest->y = 0;
+        dest->w = ScreenWidth;
+        dest->h = ScreenHeight;
+        return;
+    }
+
+    const float base_width = (float)ScreenWidth;
+    const float base_height = (float)ScreenHeight * 6.0f / 5.0f;
+    float scale = fminf(output_width / base_width, output_height / base_height);
+    int integer_scale = (int)scale;
+    if (integer_scale >= 1)
+    {
+        scale = (float)integer_scale;
+    }
+
+    dest->w = (int)lroundf(base_width * scale);
+    dest->h = (int)lroundf(base_height * scale);
+    dest->x = (output_width - dest->w) / 2;
+    dest->y = (output_height - dest->h) / 2;
+}
 
 static uint8_t scale_palette_value(uint8_t value)
 {
@@ -131,17 +161,15 @@ void I_InitGraphics(void)
         I_Error("SDL window creation failed: %s", SDL_GetError());
     }
 
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer)
     {
         I_Error("SDL renderer creation failed: %s", SDL_GetError());
     }
 
-    // Set logical rendering size for automatic 4:3 aspect ratio preservation.
-    // Using 320x240 instead of 320x200 to account for square pixels on modern displays.
-    // Original DOOM used 320x200 on 4:3 CRT monitors with non-square pixels (~1.2:1 pixel aspect).
-    // This maintains authentic 4:3 aspect ratio on modern square-pixel displays.
-    SDL_RenderSetLogicalSize(renderer, ScreenWidth, 240);
+    // Rendering uses an explicit destination rectangle to preserve 4:3 aspect.
 
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ScreenWidth, ScreenHeight);
     if (!texture)
@@ -182,7 +210,9 @@ void I_FinishUpdate(void)
 
     SDL_UpdateTexture(texture, NULL, video_buffer, ScreenWidth * (int)sizeof(uint32_t));
     SDL_RenderClear(renderer);
-    SDL_RenderCopy(renderer, texture, NULL, NULL);
+    SDL_Rect dest;
+    I_GetRenderDestRect(&dest);
+    SDL_RenderCopy(renderer, texture, NULL, &dest);
     SDL_RenderPresent(renderer);
 }
 
