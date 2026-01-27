@@ -106,10 +106,12 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 - ✅ Retained sdl_net_stub for maximum compatibility (superior to legacy BSD code)
 
 #### 6. Game Data & Content Gates
-- 🔲 Streamline `gamemode`/`gameversion` conditionals
-- 🔲 Normalize WAD lump fallbacks in `w_wad.c`, `p_setup.c`
-- 🔲 Update UI strings in `dstrings.c`/`dstrings.h`
-- 🔲 Make capability flags explicit vs. version-based
+- ✅ **Created Centralized Version Capability System**: `g_version.c`/`g_version.h` with data-driven metadata tables
+- ✅ **Streamlined gamemode/gameversion Conditionals**: Replaced scattered version checks with capability query functions (`G_MaxEpisodes()`, `G_AllowPWADs()`, `G_FastFinaleSkip()`, etc.)
+- ✅ **Consolidated Duplicate Sky Logic**: Unified `G_GetSkyTexture()` helper function replaces ~30 lines of duplicate code in `g_game.c`
+- ✅ **Initialize Version System**: `G_InitVersion()` called in `d_main.c` after gamemode detection
+- 🔲 Normalize WAD lump fallbacks in `w_wad.c`, `p_setup.c` (deferred - existing fallback logic acceptable)
+- 🔲 Update UI strings in `dstrings.c`/`dstrings.h` (deferred - strings already version-agnostic)
 
 #### 7. Save/Load & Determinism
 - 🔲 Verify savegame determinism after SDL2 changes
@@ -191,9 +193,9 @@ cmake --build build
 
 1. **Automated Testing**: No regression test suite; manual testing required for save/load and demo playback
 
-2. **Content Consolidation**: Game version/mode conditionals in `g_game.c`, `p_setup.c`, `info.c` could be streamlined with explicit capability flags
+2. **Advanced Graphics Features**: Future enhancements could include widescreen rendering support, HUD scaling for modern resolutions, optional aspect ratio modes (4:3, widescreen, stretched)
 
-3. **Advanced Graphics Features**: Future enhancements could include widescreen rendering support, HUD scaling for modern resolutions, optional aspect ratio modes (4:3, widescreen, stretched)
+3. **Rendering & Resolution Independence**: Sprite/patch scaling and HUD rendering for modern displays still uses fixed 320x200 logical resolution
 
 ## Recommended Next Steps
 
@@ -215,8 +217,8 @@ cmake --build build
 15. **README.TXT Update**: Documented SDL2-only setup, capabilities, and removed backends
 
 ### Short Term (Following PRs)
-16. **Testing**: Verify save/load and demo playback with SDL2 backend
-17. **Content Consolidation**: Streamline gamemode/gameversion conditionals with explicit capability flags
+16. ✅ **Content Consolidation**: Centralized game version capability system with data-driven metadata and queries
+17. **Testing**: Verify save/load and demo playback with SDL2 backend
 18. **Configuration Options**: Add optional command-line flags for aspect ratio modes
 
 ### Future Enhancements
@@ -233,6 +235,8 @@ The modernization will be considered complete when:
 - ✅ Builds without X11 dependencies
 - ✅ Automatic 4:3 aspect ratio preservation (via SDL_RenderSetLogicalSize)
 - ✅ Window resize/fullscreen works correctly (Alt+Enter toggle)
+- ✅ Centralized game version capability system (g_version.c/h with data-driven metadata)
+- ✅ Consolidated duplicate game logic (sky texture selection, capability queries)
 - ⚠️ Manual testing of save/load and demo playback (pending)
 - ✅ Wayland compatibility confirmed
 - ✅ All documentation updated
@@ -250,13 +254,13 @@ The modernization will be considered complete when:
 
 ## Summary
 
-**Current State**: Core SDL2 modernization is **complete**. The codebase is fully migrated to SDL2 for all platform interfaces (video, audio, input, networking). All legacy backends (X11, SDL1, OSS/ALSA, BSD sockets, sndserver) have been removed. CMake build is simplified with SDL2_net as the only networking backend.
+**Current State**: Core SDL2 modernization and content consolidation are **complete**. The codebase is fully migrated to SDL2 for all platform interfaces (video, audio, input, networking). All legacy backends (X11, SDL1, OSS/ALSA, BSD sockets, sndserver) have been removed. CMake build is simplified with SDL2_net as the only networking backend. Game version capability system centralized with data-driven metadata tables and clean capability query functions.
 
 **Next Phase**: Testing and optional enhancements:
 - Manual verification of save/load and demo playback
-- Content consolidation (streamline game version/mode conditionals)
+- Rendering & resolution independence improvements
 - Optional enhancements (widescreen support, HUD scaling, aspect ratio selection)
 
-**Completeness**: Core modernization ~95% complete. Remaining work is primarily testing, polish, and optional features.
+**Completeness**: Core modernization and content consolidation **complete** (~90%). Remaining work is primarily testing, rendering improvements, and optional features.
 
 **Risk Level**: Low - The SDL2 backend has been thoroughly tested during this modernization. Core functionality is stable.
