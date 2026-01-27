@@ -195,8 +195,8 @@ typedef struct
     int manual_ip_cursor;
 } browser_state_t;
 
-static lobby_state_t lobby_state;
-static browser_state_t browser_state;
+static lobby_state_t lobby_state = {0};
+static browser_state_t browser_state = {0};
 
 short		itemOn;			// menu item skull is on
 short		skullAnimCounter;	// skull animation counter
