@@ -85,12 +85,6 @@ typedef enum
 //#define SNDINTR  1
 
 
-// This one switches between MIT SHM (no proper mouse)
-// and XFree86 DGA (mickey sampling). The original
-// linuxdoom used SHM, which is default.
-//#define X11_DGA		1
-
-
 //
 // For resize of screen, at start of game.
 // It will not work dynamically, see visplanes.
