@@ -503,6 +503,9 @@ W_CacheLumpNum
 		lump, lumpinfo[lump].name, lumplen, tag);
 	fflush(stderr);
 	ptr = Z_Malloc (lumplen, tag, &lumpcache[lump]);
+	fprintf(stderr, "  After Z_Malloc: lumpcache[%d]=%p ptr=%p ptr_returned=%p\n",
+		lump, lumpcache[lump], ptr, *(void**)&lumpcache[lump]);
+	fflush(stderr);
 	W_ReadLump (lump, lumpcache[lump]);
 	fprintf(stderr, "W_CacheLumpNum: Loaded lump %d (%s) successfully at %p\n",
 		lump, lumpinfo[lump].name, lumpcache[lump]);

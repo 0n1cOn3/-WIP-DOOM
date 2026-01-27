@@ -148,7 +148,8 @@ void P_LoadVertexes (int lump)
     }
 
     // Free buffer memory.
-    Z_Free (data);
+    // Don't free cached lump - it's managed by the cache system
+    // Z_Free (data);
 }
 
 
@@ -192,7 +193,8 @@ void P_LoadSegs (int lump)
 	    li->backsector = 0;
     }
 	
-    Z_Free (data);
+    // Don't free cached lump - it's managed by the cache system
+    // Z_Free (data);
 }
 
 
@@ -220,7 +222,8 @@ void P_LoadSubsectors (int lump)
 	ss->firstline = SHORT(ms->firstseg);
     }
 	
-    Z_Free (data);
+    // Don't free cached lump - it's managed by the cache system
+    // Z_Free (data);
 }
 
 
@@ -254,7 +257,8 @@ void P_LoadSectors (int lump)
 	ss->thinglist = NULL;
     }
 	
-    Z_Free (data);
+    // Don't free cached lump - it's managed by the cache system
+    // Z_Free (data);
 }
 
 
@@ -291,7 +295,8 @@ void P_LoadNodes (int lump)
 	}
     }
 	
-    Z_Free (data);
+    // Don't free cached lump - it's managed by the cache system
+    // Z_Free (data);
 }
 
 
@@ -365,7 +370,8 @@ void P_LoadThings (int lump)
     fprintf(stderr, "P_LoadThings: Spawned all %d things successfully\n", i);
     fflush(stderr);
 
-    Z_Free (data);
+    // Don't free cached lump - it's managed by the cache system
+    // Z_Free (data);
 }
 
 
@@ -458,7 +464,8 @@ void P_LoadLineDefs (int lump)
 	    ld->backsector = 0;
     }
 	
-    Z_Free (data);
+    // Don't free cached lump - it's managed by the cache system
+    // Z_Free (data);
 }
 
 
@@ -495,7 +502,8 @@ void P_LoadSideDefs (int lump)
 	sd->sector = &sectors[sector_idx];
     }
 	
-    Z_Free (data);
+    // Don't free cached lump - it's managed by the cache system
+    // Z_Free (data);
 }
 
 
