@@ -16,9 +16,7 @@ file(GLOB DOOM_SOURCES
 
 list(REMOVE_ITEM DOOM_SOURCES
     ${SOURCE_DIR}/i_video.c
-    ${SOURCE_DIR}/i_video_sdl.c
     ${SOURCE_DIR}/i_video_sdl2.c
-    ${SOURCE_DIR}/i_video_x11.c
     ${SOURCE_DIR}/i_net.c
     ${SOURCE_DIR}/net_harness.c)
 
