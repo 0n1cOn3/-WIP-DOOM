@@ -339,6 +339,32 @@ corrupted WAD data with clear error messages before they corrupt allocator state
 **Result:** Game now initializes without SEGV crashes. Corrupted WAD data is
 detected and reported clearly instead of causing silent heap corruption.
 
+### 5. CRITICAL 32→64-bit Porting Bug in P_GroupLines - p_setup.c:620
+
+**The Root Cause of All Z_Malloc Crashes:**
+
+```c
+// BEFORE (WRONG - allocates half memory needed on 64-bit):
+linebuffer = Z_Malloc(total*4, PU_LEVEL, 0);  // 4 bytes per pointer?!
+
+// AFTER (CORRECT - allocates correct size):
+linebuffer = Z_Malloc(total*sizeof(line_t*), PU_LEVEL, 0);  // 8 bytes on 64-bit
+```
+
+**Issue:** Each entry in linebuffer is a `line_t*` pointer (8 bytes on 64-bit systems),
+but the code only allocated 4 bytes per entry. When the code then did `*linebuffer++ = li`,
+it wrote past the allocated buffer, corrupting the zone allocator's heap metadata.
+
+**Why This Caused SEGV:** When Z_Malloc tried to traverse the free list to find memory
+for the next allocation (THINGS lump), it encountered corrupted block metadata, causing
+SEGV when dereferencing `base->user` or `base->size`.
+
+**Impact:** This single line was responsible for ALL the cascading Z_Malloc crashes
+during level loading. It's a classic 32→64-bit porting bug where hardcoded pointer
+sizes weren't updated.
+
+**Result:** Levels now load successfully. Player spawns in game world without crashes.
+
 ---
 
 ## Future Enhancements
