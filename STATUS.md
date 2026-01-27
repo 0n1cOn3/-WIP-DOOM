@@ -1,9 +1,9 @@
 # DOOM Modernization Project - Current Status
 
-**Last Updated:** January 27, 2026 (Session 2)
+**Last Updated:** January 27, 2026
 **Repository:** 0n1cOn3/-WIP-DOOM
 **Branch:** master
-**Last Commit:** Fix viewport aspect ratio calculation in SDL_RenderSetLogicalSize
+**Last Commit:** WIP: Multiplayer lobby UI + async host/join + secure networking
 
 ## Executive Summary
 
@@ -29,6 +29,13 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 - ✅ **Network Harness**: `net_harness` utility fully functional with SDL2_net
 - ✅ **Latency Handling**: Network simulation (latency/packet loss) integrated
 - ✅ **Legacy Code Removed**: All BSD sockets code removed; DOOM_USE_LEGACY_NETWORKING eliminated
+- ✅ **Authenticated Packets**: All game packets now carry a BLAKE2s MAC keyed by a per-session 128-bit key exchanged during host/join bootstrap.
+- ✅ **Host/Join CLI Flow**: `-host N` / `-connect host[:port]` lobby bootstrap retained with MACed transport.
+- ✅ **Multiplayer Menu**: In-game Multiplayer menu with Host/Join flows, lobby screen, and user-friendly status/errors.
+- ✅ **LAN Discovery**: Join menu shows discovered hosts via LAN broadcast PROBE/ANNOUNCE.
+- ✅ **Direct Connect**: Manual host[:port] entry with IPv6 bracket support for WAN/direct joins.
+- ✅ **Lobby Roster**: Player names exchanged during JOIN and displayed in the lobby; host can manually start once 2+ players are present.
+- ✅ **Verbose Toggle**: Settings toggle for BASIC vs RICH lobby details (session key prefix + content hash prefix).
 
 ### Audio
 - ✅ **SDL2 Audio Backend**: Complete rewrite of `i_sound.c` using SDL2 audio API

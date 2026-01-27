@@ -85,6 +85,16 @@ int			showMessages;
 int			detailLevel;		
 int			screenblocks;		// has default
 
+// Multiplayer UI verbosity (0 = friendly, 1 = show detailed session info)
+int                     mp_verbose_info;        // has default
+
+// Multiplayer lobby runtime (Phase 4).
+static int mp_lobby_inflight = 0;
+static int mp_lobby_launched = 0;
+static int mp_lobby_last_status = NET_STATUS_INIT;
+static int mp_manual_ip_enter = 0;
+static char mp_manual_old_ip[64];
+
 // -1 = no quicksave slot picked!
 int			quickSaveSlot;          
 
@@ -165,6 +175,29 @@ typedef struct menu_s
     short		lastOn;		// last item user was on in menu
 } menu_t;
 
+typedef struct
+{
+    int player_count;           // 2-4
+    int vanilla_only;           // 0 or 1
+    int is_host;                // 1 if hosting, 0 if joining
+    int connected_players;
+    char player_names[MAXPLAYERS][16];
+    int start_skill;            // 1-5
+    int start_episode;          // 1-4
+    int start_map;              // 1-32
+} lobby_state_t;
+
+typedef struct
+{
+    IPaddress servers[8];
+    int server_count;
+    char manual_ip[64];
+    int manual_ip_cursor;
+} browser_state_t;
+
+static lobby_state_t lobby_state;
+static browser_state_t browser_state;
+
 short		itemOn;			// menu item skull is on
 short		skullAnimCounter;	// skull animation counter
 short		whichSkull;		// which skull to draw
@@ -200,12 +233,23 @@ void M_StartGame(int choice);
 void M_Sound(int choice);
 void M_OpenDisplay(int choice);
 void M_OpenNetwork(int choice);
+void M_OpenMultiplayer(int choice);
 void M_DisplayAspect(int choice);
 void M_DisplayScale(int choice);
 void M_DisplayResolution(int choice);
 void M_DisplayFullscreen(int choice);
 void M_NetLatency(int choice);
 void M_NetPacketLoss(int choice);
+void M_NetVerbose(int choice);
+
+void M_HostSetup(int choice);
+void M_JoinSetup(int choice);
+void M_HostPlayers(int choice);
+void M_HostVanilla(int choice);
+void M_HostStart(int choice);
+void M_JoinRefresh(int choice);
+void M_JoinSelect(int choice);
+void M_JoinManual(int choice);
 
 void M_FinishReadThis(int choice);
 void M_LoadSelect(int choice);
@@ -215,6 +259,7 @@ void M_QuickSave(void);
 void M_QuickLoad(void);
 
 void M_DrawMainMenu(void);
+void M_DrawSinglePlayer(void);
 void M_DrawReadThis1(void);
 void M_DrawReadThis2(void);
 void M_DrawNewGame(void);
@@ -223,9 +268,15 @@ void M_DrawOptions(void);
 void M_DrawSound(void);
 void M_DrawDisplay(void);
 void M_DrawNetwork(void);
+void M_DrawMultiplayer(void);
+void M_DrawHostSetup(void);
+void M_DrawJoinBrowser(void);
+void M_DrawWaitingLobby(void);
 void M_DrawLoad(void);
 void M_DrawSave(void);
 
+void M_OpenSinglePlayer(int choice);
+void M_OpenMainMenu(int choice);
 void M_DrawSaveLoadBorder(int x,int y);
 void M_SetupNextMenu(menu_t *menudef);
 void M_DrawThermo(int x,int y,int thermWidth,int thermDot);
@@ -250,24 +301,19 @@ static const char* GetAspectLabel(void);
 //
 enum
 {
-    newgame = 0,
-    options,
-    loadgame,
-    savegame,
-    readthis,
-    quitdoom,
+    main_singleplayer = 0,
+    main_multiplayer,
+    main_options,
+    main_quit,
     main_end
 } main_e;
 
 menuitem_t MainMenu[]=
 {
-    {1,"M_NGAME",M_NewGame,'n'},
-    {1,"M_OPTION",M_Options,'o'},
-    {1,"M_LOADG",M_LoadGame,'l'},
-    {1,"M_SAVEG",M_SaveGame,'s'},
-    // Another hickup with Special edition.
-    {1,"M_RDTHIS",M_ReadThis,'r'},
-    {1,"M_QUITG",M_QuitDOOM,'q'}
+    {1,"",M_OpenSinglePlayer,'s'},
+    {1,"",M_OpenMultiplayer,'m'},
+    {1,"",M_Options,'o'},
+    {1,"",M_QuitDOOM,'q'}
 };
 
 menu_t  MainDef =
@@ -276,7 +322,37 @@ menu_t  MainDef =
     NULL,
     MainMenu,
     M_DrawMainMenu,
-    97,64,
+    60,64,
+    0
+};
+
+//
+// SINGLE PLAYER MENU
+//
+enum
+{
+    sp_newgame = 0,
+    sp_loadgame,
+    sp_savegame,
+    sp_back,
+    sp_end
+} singleplayer_e;
+
+menuitem_t SinglePlayerMenu[]=
+{
+    {1,"", M_NewGame,'n'},
+    {1,"", M_LoadGame,'l'},
+    {1,"", M_SaveGame,'s'},
+    {1,"", M_OpenMainMenu,'b'}
+};
+
+menu_t SinglePlayerDef =
+{
+    sp_end,
+    &MainDef,
+    SinglePlayerMenu,
+    M_DrawSinglePlayer,
+    60,64,
     0
 };
 
@@ -304,7 +380,7 @@ menuitem_t EpisodeMenu[]=
 menu_t  EpiDef =
 {
     ep_end,		// # of menu items
-    &MainDef,		// previous menu
+    &SinglePlayerDef,		// previous menu
     EpisodeMenu,	// menuitem_t ->
     M_DrawEpisode,	// drawing routine ->
     48,63,              // x,y
@@ -359,6 +435,7 @@ enum
     option_empty2,
     displayopt,
     networkopt,
+    gameinst,
     opt_end
 } options_e;
 
@@ -372,7 +449,8 @@ menuitem_t OptionsMenu[]=
     {1,"",		M_Sound,'s'},
     {-1,"",0},
     {1,"",		M_OpenDisplay,'d'},
-    {1,"",		M_OpenNetwork,'n'}
+    {1,"",		M_OpenNetwork,'n'},
+    {1,"",		M_ReadThis,'i'}
 };
 
 menu_t  OptionsDef =
@@ -424,6 +502,7 @@ enum
 {
     network_latency,
     network_packet_loss,
+    network_verbose,
     network_back,
     network_end
 } network_e;
@@ -432,6 +511,7 @@ menuitem_t NetworkMenu[]=
 {
     {2,"", M_NetLatency,'l'},
     {2,"", M_NetPacketLoss,'p'},
+    {1,"", M_NetVerbose,'d'},
     {1,"", M_Options,'b'}
 };
 
@@ -549,7 +629,7 @@ menuitem_t LoadMenu[]=
 menu_t  LoadDef =
 {
     load_end,
-    &MainDef,
+    &SinglePlayerDef,
     LoadMenu,
     M_DrawLoad,
     80,54,
@@ -572,7 +652,7 @@ menuitem_t SaveMenu[]=
 menu_t  SaveDef =
 {
     load_end,
-    &MainDef,
+    &SinglePlayerDef,
     SaveMenu,
     M_DrawSave,
     80,54,
@@ -963,6 +1043,33 @@ void M_MusicBackend(int choice)
 void M_DrawMainMenu(void)
 {
     V_DrawPatchDirect (94,2,0,W_CacheLumpName("M_DOOM",PU_CACHE));
+
+    M_WriteText(MainDef.x, MainDef.y + LINEHEIGHT*main_singleplayer, "SINGLE PLAYER");
+    M_WriteText(MainDef.x, MainDef.y + LINEHEIGHT*main_multiplayer,  "MULTIPLAYER");
+    M_WriteText(MainDef.x, MainDef.y + LINEHEIGHT*main_options,      "OPTIONS");
+    M_WriteText(MainDef.x, MainDef.y + LINEHEIGHT*main_quit,         "QUIT GAME");
+}
+
+void M_DrawSinglePlayer(void)
+{
+    int title_x = 160 - M_StringWidth("SINGLE PLAYER")/2;
+    M_WriteText(title_x, 15, "SINGLE PLAYER");
+    M_WriteText(SinglePlayerDef.x, SinglePlayerDef.y + LINEHEIGHT*sp_newgame, "NEW GAME");
+    M_WriteText(SinglePlayerDef.x, SinglePlayerDef.y + LINEHEIGHT*sp_loadgame, "LOAD GAME");
+    M_WriteText(SinglePlayerDef.x, SinglePlayerDef.y + LINEHEIGHT*sp_savegame, "SAVE GAME");
+    M_WriteText(SinglePlayerDef.x, SinglePlayerDef.y + LINEHEIGHT*sp_back, "BACK");
+}
+
+void M_OpenSinglePlayer(int choice)
+{
+    (void)choice;
+    M_SetupNextMenu(&SinglePlayerDef);
+}
+
+void M_OpenMainMenu(int choice)
+{
+    (void)choice;
+    M_SetupNextMenu(&MainDef);
 }
 
 
@@ -1071,6 +1178,8 @@ void M_Episode(int choice)
 	 && choice)
     {
 	M_StartMessage(SWSTRING,NULL,false);
+        // Show the shareware "Read This" screen, then return to episode select.
+        ReadDef1.prevMenu = &EpiDef;
 	M_SetupNextMenu(&ReadDef1);
 	return;
     }
@@ -1119,6 +1228,7 @@ void M_DrawOptions(void)
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*soundvol, "AUDIO SETTINGS");
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*displayopt, "DISPLAY SETTINGS");
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*networkopt, "NETWORK SETTINGS");
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*gameinst, "GAME INSTRUCTIONS");
 }
 
 void M_DrawDisplay(void)
@@ -1170,6 +1280,10 @@ void M_DrawNetwork(void)
     sprintf(value, "%d%%", I_GetNetPacketLoss());
     M_WriteText(value_x, NetworkDef.y + LINEHEIGHT*network_packet_loss, value);
 
+    M_WriteText(NetworkDef.x, NetworkDef.y + LINEHEIGHT*network_verbose, "DETAILS");
+    sprintf(value, "%s", mp_verbose_info ? "RICH" : "BASIC");
+    M_WriteText(value_x, NetworkDef.y + LINEHEIGHT*network_verbose, value);
+
     M_WriteText(NetworkDef.x, NetworkDef.y + LINEHEIGHT*network_back, "BACK");
     M_WriteText(NetworkDef.x, NetworkDef.y + LINEHEIGHT*(network_back + 1), "SIMULATION ONLY");
 }
@@ -1187,6 +1301,686 @@ void M_OpenDisplay(int choice)
 void M_OpenNetwork(int choice)
 {
     M_SetupNextMenu(&NetworkDef);
+}
+
+void M_NetVerbose(int choice)
+{
+    (void)choice;
+    mp_verbose_info = !mp_verbose_info;
+}
+
+//
+// MULTIPLAYER MENUS (Phase 1 UI scaffolding; networking becomes async in Phase 3)
+//
+
+void M_LobbyStartGame(int choice);
+void M_ManualConnect(int choice);
+void M_ManualBack(int choice);
+void M_DrawManualConnect(void);
+void M_HostSkill(int choice);
+void M_HostEpisode(int choice);
+void M_HostMap(int choice);
+
+enum
+{
+    mp_main_host,
+    mp_main_join,
+    mp_main_back,
+    mp_main_end
+} mp_main_e;
+
+menuitem_t MultiplayerMenu[]=
+{
+    {1,"", M_HostSetup,'h'},
+    {1,"", M_JoinSetup,'j'},
+    {1,"", M_OpenMainMenu,'b'}
+};
+
+menu_t MultiplayerDef =
+{
+    mp_main_end,
+    &MainDef,
+    MultiplayerMenu,
+    M_DrawMultiplayer,
+    60,37,
+    0
+};
+
+enum
+{
+    host_players,
+    host_vanilla,
+    host_skill,
+    host_episode,
+    host_map,
+    host_start,
+    host_back,
+    host_end
+} host_e;
+
+menuitem_t HostMenu[]=
+{
+    {2,"", M_HostPlayers,'p'},
+    {2,"", M_HostVanilla,'v'},
+    {2,"", M_HostSkill,'k'},
+    {2,"", M_HostEpisode,'e'},
+    {2,"", M_HostMap,'m'},
+    {1,"", M_HostStart,'s'},
+    {1,"", M_OpenMultiplayer,'b'}
+};
+
+menu_t HostDef =
+{
+    host_end,
+    &MultiplayerDef,
+    HostMenu,
+    M_DrawHostSetup,
+    60,37,
+    0
+};
+
+enum
+{
+    join_slot0,
+    join_slot1,
+    join_slot2,
+    join_slot3,
+    join_slot4,
+    join_slot5,
+    join_slot6,
+    join_slot7,
+    join_manual,
+    join_refresh,
+    join_back,
+    join_end
+} join_e;
+
+menuitem_t JoinMenu[]=
+{
+    {1,"", M_JoinSelect,'1'},
+    {1,"", M_JoinSelect,'2'},
+    {1,"", M_JoinSelect,'3'},
+    {1,"", M_JoinSelect,'4'},
+    {1,"", M_JoinSelect,'5'},
+    {1,"", M_JoinSelect,'6'},
+    {1,"", M_JoinSelect,'7'},
+    {1,"", M_JoinSelect,'8'},
+    {1,"", M_JoinManual,'m'},
+    {1,"", M_JoinRefresh,'r'},
+    {1,"", M_OpenMultiplayer,'b'}
+};
+
+menu_t JoinDef =
+{
+    join_end,
+    &MultiplayerDef,
+    JoinMenu,
+    M_DrawJoinBrowser,
+    60,37,
+    0
+};
+
+enum
+{
+    manual_connect,
+    manual_back,
+    manual_end
+} manual_e;
+
+menuitem_t ManualMenu[]=
+{
+    {1,"", M_ManualConnect,'c'},
+    {1,"", M_ManualBack,'b'}
+};
+
+menu_t ManualDef =
+{
+    manual_end,
+    &JoinDef,
+    ManualMenu,
+    M_DrawManualConnect,
+    60,150,
+    0
+};
+
+enum
+{
+    lobby_start,
+    lobby_cancel,
+    lobby_end
+} lobby_e;
+
+menuitem_t LobbyMenu[]=
+{
+    {1,"", M_LobbyStartGame,'s'},
+    {1,"", M_OpenMultiplayer,'b'}
+};
+
+menu_t LobbyDef =
+{
+    lobby_end,
+    &MultiplayerDef,
+    LobbyMenu,
+    M_DrawWaitingLobby,
+    60,140,
+    0
+};
+
+void M_OpenMultiplayer(int choice)
+{
+    (void)choice;
+    if (mp_lobby_inflight)
+    {
+        I_CancelNetworkInit();
+        mp_lobby_inflight = 0;
+        mp_lobby_launched = 0;
+        mp_lobby_last_status = NET_STATUS_INIT;
+    }
+    M_SetupNextMenu(&MultiplayerDef);
+}
+
+void M_HostSetup(int choice)
+{
+    (void)choice;
+    lobby_state.is_host = 1;
+    lobby_state.player_count = 2;
+    lobby_state.vanilla_only = 0;
+    lobby_state.start_skill = 2;
+    lobby_state.start_episode = 1;
+    lobby_state.start_map = 1;
+    M_SetupNextMenu(&HostDef);
+}
+
+void M_JoinSetup(int choice)
+{
+    (void)choice;
+    lobby_state.is_host = 0;
+    M_JoinRefresh(0);
+    M_SetupNextMenu(&JoinDef);
+}
+
+void M_HostPlayers(int choice)
+{
+    // choice: 0 = left, 1 = right
+    int pc = lobby_state.player_count ? lobby_state.player_count : 2;
+    if (pc < 2) pc = 2;
+    if (pc > 4) pc = 4;
+    if (choice)
+        pc = (pc == 4) ? 2 : pc + 1;
+    else
+        pc = (pc == 2) ? 4 : pc - 1;
+    lobby_state.player_count = pc;
+}
+
+void M_HostVanilla(int choice)
+{
+    (void)choice;
+    lobby_state.vanilla_only = !lobby_state.vanilla_only;
+    I_SetVanillaOnly(lobby_state.vanilla_only);
+}
+
+void M_HostSkill(int choice)
+{
+    int s = lobby_state.start_skill ? lobby_state.start_skill : 2;
+    if (choice)
+        s++;
+    else
+        s--;
+    if (s < 1) s = 5;
+    if (s > 5) s = 1;
+    lobby_state.start_skill = s;
+}
+
+void M_HostEpisode(int choice)
+{
+    // Doom II ignores episodes; keep at 1.
+    if (gamemode == commercial)
+    {
+        lobby_state.start_episode = 1;
+        return;
+    }
+
+    int e = lobby_state.start_episode ? lobby_state.start_episode : 1;
+    if (choice)
+        e++;
+    else
+        e--;
+    if (e < 1) e = 4;
+    if (e > 4) e = 1;
+
+    // Shareware only supports episode 1.
+    if (gamemode == shareware)
+        e = 1;
+
+    lobby_state.start_episode = e;
+}
+
+void M_HostMap(int choice)
+{
+    int max_map = (gamemode == commercial) ? 32 : 9;
+    int m = lobby_state.start_map ? lobby_state.start_map : 1;
+    if (choice)
+        m++;
+    else
+        m--;
+    if (m < 1) m = max_map;
+    if (m > max_map) m = 1;
+    lobby_state.start_map = m;
+}
+
+void M_HostStart(int choice)
+{
+    (void)choice;
+    // Start host lobby network init (async; polled from menu ticker).
+    I_SetVanillaOnly(lobby_state.vanilla_only);
+    I_SetNetStartSettings(lobby_state.start_skill, lobby_state.start_episode, lobby_state.start_map);
+    I_InitNetworkAsync(1, lobby_state.player_count);
+    mp_lobby_inflight = 1;
+    mp_lobby_launched = 0;
+    mp_lobby_last_status = NET_STATUS_WAITING;
+
+    // Host can start the game from the lobby.
+    LobbyMenu[lobby_start].status = 1;
+    M_SetupNextMenu(&LobbyDef);
+}
+
+void M_JoinRefresh(int choice)
+{
+    (void)choice;
+    browser_state.server_count = I_RunLanDiscovery(browser_state.servers, 8);
+    S_StartSound(NULL,sfx_swtchn);
+}
+
+void M_JoinSelect(int choice)
+{
+    (void)choice;
+    int idx = itemOn; // 0..7
+    if (idx < 0 || idx >= 8 || idx >= browser_state.server_count)
+    {
+        M_StartMessage("No server in that slot.", NULL, false);
+        return;
+    }
+    I_SetConnectTarget(browser_state.servers[idx]);
+    I_InitNetworkAsync(0, 0);
+    mp_lobby_inflight = 1;
+    mp_lobby_launched = 0;
+    mp_lobby_last_status = NET_STATUS_WAITING;
+
+    // Client can't start; they wait for host START.
+    LobbyMenu[lobby_start].status = -1;
+    M_SetupNextMenu(&LobbyDef);
+}
+
+void M_JoinManual(int choice)
+{
+    (void)choice;
+    mp_manual_ip_enter = 1;
+    memset(mp_manual_old_ip, 0, sizeof(mp_manual_old_ip));
+    strncpy(mp_manual_old_ip, browser_state.manual_ip, sizeof(mp_manual_old_ip) - 1);
+    browser_state.manual_ip_cursor = (int)strlen(browser_state.manual_ip);
+    M_SetupNextMenu(&ManualDef);
+}
+
+void M_DrawMultiplayer(void)
+{
+    int title_x = 160 - M_StringWidth("MULTIPLAYER")/2;
+    M_WriteText(title_x, 15, "MULTIPLAYER");
+    M_WriteText(MultiplayerDef.x, MultiplayerDef.y + LINEHEIGHT*mp_main_host, "HOST GAME");
+    M_WriteText(MultiplayerDef.x, MultiplayerDef.y + LINEHEIGHT*mp_main_join, "JOIN GAME");
+    M_WriteText(MultiplayerDef.x, MultiplayerDef.y + LINEHEIGHT*mp_main_back, "BACK");
+}
+
+void M_DrawHostSetup(void)
+{
+    char value[32];
+    int value_x = HostDef.x + 140;
+    int title_x = 160 - M_StringWidth("HOST GAME")/2;
+    int pc = lobby_state.player_count ? lobby_state.player_count : 2;
+
+    M_WriteText(title_x, 15, "HOST GAME");
+    M_WriteText(HostDef.x, HostDef.y + LINEHEIGHT*host_players, "PLAYERS");
+    sprintf(value, "%d", pc);
+    M_WriteText(value_x, HostDef.y + LINEHEIGHT*host_players, value);
+
+    M_WriteText(HostDef.x, HostDef.y + LINEHEIGHT*host_vanilla, "VANILLA ONLY");
+    M_WriteText(value_x, HostDef.y + LINEHEIGHT*host_vanilla, lobby_state.vanilla_only ? "ON" : "OFF");
+
+    M_WriteText(HostDef.x, HostDef.y + LINEHEIGHT*host_skill, "SKILL");
+    sprintf(value, "%d", lobby_state.start_skill ? lobby_state.start_skill : 2);
+    M_WriteText(value_x, HostDef.y + LINEHEIGHT*host_skill, value);
+
+    M_WriteText(HostDef.x, HostDef.y + LINEHEIGHT*host_episode, "EPISODE");
+    if (gamemode == commercial)
+        strcpy(value, "-");
+    else
+        sprintf(value, "%d", lobby_state.start_episode ? lobby_state.start_episode : 1);
+    M_WriteText(value_x, HostDef.y + LINEHEIGHT*host_episode, value);
+
+    M_WriteText(HostDef.x, HostDef.y + LINEHEIGHT*host_map, "MAP");
+    if (gamemode == commercial)
+        sprintf(value, "%d", lobby_state.start_map ? lobby_state.start_map : 1);
+    else
+        sprintf(value, "%d", lobby_state.start_map ? lobby_state.start_map : 1);
+    M_WriteText(value_x, HostDef.y + LINEHEIGHT*host_map, value);
+
+    M_WriteText(HostDef.x, HostDef.y + LINEHEIGHT*host_start, "START");
+    M_WriteText(HostDef.x, HostDef.y + LINEHEIGHT*host_back, "BACK");
+}
+
+void M_DrawJoinBrowser(void)
+{
+    char line[64];
+    int title_x = 160 - M_StringWidth("JOIN GAME")/2;
+    int y = JoinDef.y;
+
+    M_WriteText(title_x, 15, "JOIN GAME");
+    if (browser_state.server_count <= 0)
+        M_WriteText(JoinDef.x, y - LINEHEIGHT, "NO SERVERS FOUND");
+    else
+    {
+        char s[32];
+        sprintf(s, "SERVERS: %d", browser_state.server_count);
+        M_WriteText(JoinDef.x, y - LINEHEIGHT, s);
+    }
+
+    for (int i = 0; i < 8; ++i)
+    {
+        M_DrawSaveLoadBorder(JoinDef.x, y + LINEHEIGHT*i);
+        if (i < browser_state.server_count)
+        {
+            IPaddress a = browser_state.servers[i];
+            Uint32 h = SDL_SwapBE32(a.host);
+            sprintf(line, "%u.%u.%u.%u:%u",
+                    (h >> 24) & 0xff, (h >> 16) & 0xff,
+                    (h >> 8) & 0xff, h & 0xff,
+                    SDL_SwapBE16(a.port));
+        }
+        else
+        {
+            strcpy(line, "-");
+        }
+        M_WriteText(JoinDef.x, y + LINEHEIGHT*i, line);
+    }
+
+    M_WriteText(JoinDef.x, y + LINEHEIGHT*join_manual, "ENTER IP MANUALLY");
+    M_WriteText(JoinDef.x, y + LINEHEIGHT*join_refresh, "REFRESH");
+    M_WriteText(JoinDef.x, y + LINEHEIGHT*join_back, "BACK");
+}
+
+void M_DrawManualConnect(void)
+{
+    int title_x = 160 - M_StringWidth("DIRECT CONNECT")/2;
+    int x = 60;
+    int y = 37;
+    char view[32];
+    int cursor = browser_state.manual_ip_cursor;
+    int len = (int)strlen(browser_state.manual_ip);
+    int view_w = 24;
+    int view_start = 0;
+    int view_cursor = 0;
+
+    M_WriteText(title_x, 15, "DIRECT CONNECT");
+    M_WriteText(x, y + LINEHEIGHT*0, "ENTER SERVER ADDRESS:");
+    M_DrawSaveLoadBorder(x, y + LINEHEIGHT*2);
+
+    if (cursor < 0) cursor = 0;
+    if (cursor > len) cursor = len;
+    if (len > view_w)
+    {
+        // Keep the cursor visible inside a 24-char window.
+        view_start = cursor - (view_w - 1);
+        if (view_start < 0) view_start = 0;
+        if (view_start > len - view_w) view_start = len - view_w;
+    }
+    view_cursor = cursor - view_start;
+    if (view_cursor < 0) view_cursor = 0;
+    if (view_cursor > view_w) view_cursor = view_w;
+
+    memset(view, 0, sizeof(view));
+    strncpy(view, browser_state.manual_ip + view_start, sizeof(view) - 1);
+    view[view_w] = '\0';
+
+    M_WriteText(x, y + LINEHEIGHT*2, view);
+
+    if (mp_manual_ip_enter)
+    {
+        char tmp[32];
+        if (view_cursor < 0) view_cursor = 0;
+        if (view_cursor > view_w) view_cursor = view_w;
+        memset(tmp, 0, sizeof(tmp));
+        strncpy(tmp, view, sizeof(tmp) - 1);
+        tmp[view_cursor] = '\0';
+        M_WriteText(x + M_StringWidth(tmp), y + LINEHEIGHT*2, "_");
+    }
+
+    M_WriteText(x, y + LINEHEIGHT*4, "EXAMPLES:");
+    M_WriteText(x, y + LINEHEIGHT*5, "192.168.1.100");
+    M_WriteText(x, y + LINEHEIGHT*6, "10.0.0.5:5029");
+    M_WriteText(x, y + LINEHEIGHT*7, "[::1]:5029");
+
+    M_WriteText(ManualDef.x, ManualDef.y + LINEHEIGHT*manual_connect, "CONNECT");
+    M_WriteText(ManualDef.x, ManualDef.y + LINEHEIGHT*manual_back, "BACK");
+}
+
+void M_ManualBack(int choice)
+{
+    (void)choice;
+    mp_manual_ip_enter = 0;
+    strncpy(browser_state.manual_ip, mp_manual_old_ip, sizeof(browser_state.manual_ip) - 1);
+    browser_state.manual_ip[sizeof(browser_state.manual_ip) - 1] = '\0';
+    browser_state.manual_ip_cursor = (int)strlen(browser_state.manual_ip);
+    M_SetupNextMenu(&JoinDef);
+}
+
+void M_ManualConnect(int choice)
+{
+    (void)choice;
+    IPaddress addr;
+
+    if (!browser_state.manual_ip[0])
+    {
+        M_StartMessage("ENTER AN ADDRESS FIRST\n\nPRESS A KEY", NULL, false);
+        S_StartSound(NULL,sfx_oof);
+        return;
+    }
+
+    if (!I_ResolveNetAddress(browser_state.manual_ip, &addr))
+    {
+        M_StartMessage("INVALID ADDRESS\n\nPRESS A KEY", NULL, false);
+        S_StartSound(NULL,sfx_oof);
+        return;
+    }
+
+    mp_manual_ip_enter = 0;
+    I_SetConnectTarget(addr);
+    I_InitNetworkAsync(0, 0);
+    mp_lobby_inflight = 1;
+    mp_lobby_launched = 0;
+    mp_lobby_last_status = NET_STATUS_WAITING;
+    LobbyMenu[lobby_start].status = -1;
+    M_SetupNextMenu(&LobbyDef);
+}
+
+static void FormatHex8(const uint8_t in[16], char out[17])
+{
+    static const char hex[] = "0123456789abcdef";
+    for (int i = 0; i < 8; ++i)
+    {
+        out[i * 2 + 0] = hex[(in[i] >> 4) & 0xF];
+        out[i * 2 + 1] = hex[(in[i] >> 0) & 0xF];
+    }
+    out[16] = 0;
+}
+
+void M_DrawWaitingLobby(void)
+{
+    int title_x = 160 - M_StringWidth("LOBBY")/2;
+    int x = 60;
+    int y = 37;
+    M_WriteText(title_x, 15, "LOBBY");
+
+    // Only the host can start the game from the lobby.
+    LobbyMenu[lobby_start].status =
+        (lobby_state.is_host && mp_lobby_inflight && I_GetLobbyPlayerCount() >= 2) ? 1 : -1;
+
+    if (!mp_verbose_info)
+    {
+        char names[MAXPLAYERS][16];
+        int total = I_GetTotalPlayers();
+        int connected = I_GetLobbyPlayerCount();
+        char s[32];
+        memset(names, 0, sizeof(names));
+        I_GetLobbyRoster(names, MAXPLAYERS);
+
+        if (mp_lobby_last_status == NET_STATUS_READY)
+            M_WriteText(x, y + LINEHEIGHT*0, lobby_state.is_host ? "READY. STARTING..." : "STARTING...");
+        else
+            M_WriteText(x, y + LINEHEIGHT*0, lobby_state.is_host ? "WAITING FOR PLAYERS..." : "CONNECTING...");
+        sprintf(s, "PLAYERS: %d/%d", connected, total);
+        M_WriteText(x, y + LINEHEIGHT*1, s);
+
+        for (int i = 0; i < total && i < MAXPLAYERS; ++i)
+        {
+            if (names[i][0])
+                M_WriteText(x, y + LINEHEIGHT*(2 + i), names[i]);
+        }
+    }
+    else
+    {
+        uint8_t key[16] = {0}, hash[16] = {0};
+        int vanilla = 0;
+        char keyhex[17], hashhex[17];
+        char names[MAXPLAYERS][16];
+        int total = 0;
+        int connected = 0;
+        I_GetSessionInfo(key, hash, &vanilla);
+        total = I_GetTotalPlayers();
+        connected = I_GetLobbyPlayerCount();
+        memset(names, 0, sizeof(names));
+        I_GetLobbyRoster(names, MAXPLAYERS);
+        FormatHex8(key, keyhex);
+        FormatHex8(hash, hashhex);
+        if (mp_lobby_last_status == NET_STATUS_READY)
+            M_WriteText(x, y + LINEHEIGHT*0, lobby_state.is_host ? "READY. STARTING..." : "STARTING...");
+        else
+            M_WriteText(x, y + LINEHEIGHT*0, lobby_state.is_host ? "HOST SESSION" : "CLIENT SESSION");
+        M_WriteText(x, y + LINEHEIGHT*1, "SESSION KEY:");
+        M_WriteText(x + 120, y + LINEHEIGHT*1, keyhex);
+        M_WriteText(x, y + LINEHEIGHT*2, "CONTENT HASH:");
+        M_WriteText(x + 120, y + LINEHEIGHT*2, hashhex);
+        M_WriteText(x, y + LINEHEIGHT*3, "VANILLA:");
+        M_WriteText(x + 120, y + LINEHEIGHT*3, vanilla ? "YES" : "NO");
+
+        {
+            char s[32];
+            sprintf(s, "PLAYERS: %d/%d", connected, total);
+            M_WriteText(x, y + LINEHEIGHT*4, s);
+        }
+        for (int i = 0; i < total && i < MAXPLAYERS; ++i)
+        {
+            if (names[i][0])
+                M_WriteText(x, y + LINEHEIGHT*(5 + i), names[i]);
+        }
+    }
+
+    if (lobby_state.is_host)
+        M_WriteText(x, y + LINEHEIGHT*10, "ENTER TO START, ESC/BACK TO CANCEL");
+    else
+        M_WriteText(x, y + LINEHEIGHT*10, "ESC/BACK TO CANCEL");
+
+    if (lobby_state.is_host)
+        M_WriteText(LobbyDef.x, LobbyDef.y + LINEHEIGHT*lobby_start, "START GAME");
+    M_WriteText(LobbyDef.x, LobbyDef.y + LINEHEIGHT*lobby_cancel, "BACK");
+}
+
+static void M_LaunchMultiplayerGame(void)
+{
+    // Phase 4 focuses on lobby flow. For now, always start a simple default netgame.
+    mp_lobby_inflight = 0;
+    mp_lobby_launched = 1;
+    menuactive = 0;
+
+    {
+        int s = 2, e = 1, m = 1;
+        I_GetNetStartSettings(&s, &e, &m);
+        if (s < 1) s = 2;
+        if (e < 1) e = 1;
+        if (m < 1) m = 1;
+        startskill = (skill_t)s;
+        startepisode = e;
+        startmap = m;
+    }
+    G_DeferedInitNew(startskill, startepisode, startmap);
+}
+
+void M_LobbyStartGame(int choice)
+{
+    (void)choice;
+    if (!lobby_state.is_host || !mp_lobby_inflight)
+        return;
+
+    // Make sure the network layer uses the host's current start settings.
+    I_SetNetStartSettings(lobby_state.start_skill, lobby_state.start_episode, lobby_state.start_map);
+
+    if (I_GetLobbyPlayerCount() < 2)
+    {
+        M_StartMessage("Need at least 2 players to start.", NULL, false);
+        return;
+    }
+
+    if (!I_LobbyStartGame())
+    {
+        M_StartMessage("Failed to start game.", NULL, false);
+        return;
+    }
+}
+
+static void M_TickLobby(void)
+{
+    if (!mp_lobby_inflight || mp_lobby_launched)
+        return;
+
+    mp_lobby_last_status = I_PollNetworkInit();
+
+    if (mp_lobby_last_status == NET_STATUS_REJECTED)
+    {
+        I_CancelNetworkInit();
+        mp_lobby_inflight = 0;
+        if (I_WasNetContentMismatch())
+            M_StartMessage("MOD MISMATCH\n\nPRESS A KEY", NULL, false);
+        else
+            M_StartMessage("CONNECTION REFUSED\n\nPRESS A KEY", NULL, false);
+        S_StartSound(NULL,sfx_oof);
+        M_SetupNextMenu(&JoinDef);
+        return;
+    }
+
+    if (mp_lobby_last_status == NET_STATUS_TIMEOUT)
+    {
+        I_CancelNetworkInit();
+        mp_lobby_inflight = 0;
+        M_StartMessage("CONNECTION TIMEOUT\n\nPRESS A KEY", NULL, false);
+        S_StartSound(NULL,sfx_oof);
+        M_SetupNextMenu(lobby_state.is_host ? &HostDef : &JoinDef);
+        return;
+    }
+
+    if (mp_lobby_last_status == NET_STATUS_ERROR)
+    {
+        I_CancelNetworkInit();
+        mp_lobby_inflight = 0;
+        M_StartMessage("NETWORK ERROR\n\nPRESS A KEY", NULL, false);
+        S_StartSound(NULL,sfx_oof);
+        M_SetupNextMenu(lobby_state.is_host ? &HostDef : &JoinDef);
+        return;
+    }
+
+    if (mp_lobby_last_status == NET_STATUS_READY)
+    {
+        I_FinishNetworkInit();
+        M_LaunchMultiplayerGame();
+        return;
+    }
 }
 
 typedef struct
@@ -1399,6 +2193,8 @@ void M_EndGame(int choice)
 void M_ReadThis(int choice)
 {
     choice = 0;
+    // If invoked from the Options menu, return there after closing instructions.
+    ReadDef1.prevMenu = &OptionsDef;
     M_SetupNextMenu(&ReadDef1);
 }
 
@@ -1410,8 +2206,10 @@ void M_ReadThis2(int choice)
 
 void M_FinishReadThis(int choice)
 {
+    menu_t *back;
     choice = 0;
-    M_SetupNextMenu(&MainDef);
+    back = ReadDef1.prevMenu ? ReadDef1.prevMenu : &MainDef;
+    M_SetupNextMenu(back);
 }
 
 
@@ -1869,6 +2667,9 @@ boolean M_Responder (event_t* ev)
 	  case KEY_F1:            // Help key
 	    M_StartControlPanel ();
 
+	    // In-game help should return to the main menu if the user backs out.
+	    ReadDef1.prevMenu = &MainDef;
+
 	    if ( gamemode == retail )
 	      currentMenu = &ReadDef2;
 	    else
@@ -1950,7 +2751,83 @@ boolean M_Responder (event_t* ev)
 	return false;
     }
 
-    
+    // Manual IP entry (Phase 6). Intercepts text input while allowing UP/DOWN menu nav.
+    if (mp_manual_ip_enter && currentMenu == &ManualDef)
+    {
+	int len = (int)strlen(browser_state.manual_ip);
+
+	if (ch == KEY_ESCAPE)
+	{
+	    // Cancel edit and restore previous value.
+	    mp_manual_ip_enter = 0;
+	    strncpy(browser_state.manual_ip, mp_manual_old_ip, sizeof(browser_state.manual_ip) - 1);
+	    browser_state.manual_ip[sizeof(browser_state.manual_ip) - 1] = '\0';
+	    browser_state.manual_ip_cursor = (int)strlen(browser_state.manual_ip);
+	    currentMenu = &JoinDef;
+	    itemOn = currentMenu->lastOn;
+	    S_StartSound(NULL,sfx_swtchn);
+	    return true;
+	}
+
+	if (ch == KEY_ENTER)
+	{
+	    if (itemOn == manual_back)
+		M_ManualBack(0);
+	    else
+		M_ManualConnect(0);
+	    S_StartSound(NULL,sfx_pistol);
+	    return true;
+	}
+
+	if (ch == KEY_BACKSPACE)
+	{
+	    if (browser_state.manual_ip_cursor > 0 && len > 0)
+	    {
+		int c = browser_state.manual_ip_cursor;
+		memmove(&browser_state.manual_ip[c - 1],
+			&browser_state.manual_ip[c],
+			(size_t)(len - c + 1));
+		browser_state.manual_ip_cursor--;
+	    }
+	    return true;
+	}
+
+	if (ch == KEY_LEFTARROW)
+	{
+	    if (browser_state.manual_ip_cursor > 0)
+		browser_state.manual_ip_cursor--;
+	    return true;
+	}
+
+	if (ch == KEY_RIGHTARROW)
+	{
+	    if (browser_state.manual_ip_cursor < len)
+		browser_state.manual_ip_cursor++;
+	    return true;
+	}
+
+	if (ch >= 32 && ch <= 126)
+	{
+	    // Accept digits, letters (hostnames), and address punctuation.
+	    if ((ch >= '0' && ch <= '9') ||
+		(ch >= 'a' && ch <= 'z') ||
+		(ch >= 'A' && ch <= 'Z') ||
+		ch == '.' || ch == ':' || ch == '-' || ch == '[' || ch == ']')
+	    {
+		if (len < (int)sizeof(browser_state.manual_ip) - 1)
+		{
+		    int c = browser_state.manual_ip_cursor;
+		    memmove(&browser_state.manual_ip[c + 1],
+			    &browser_state.manual_ip[c],
+			    (size_t)(len - c + 1));
+		    browser_state.manual_ip[c] = (char)ch;
+		    browser_state.manual_ip_cursor++;
+		}
+		return true;
+	    }
+	}
+    }
+
     // Keys usable within menu
     switch (ch)
     {
@@ -2012,6 +2889,13 @@ boolean M_Responder (event_t* ev)
 		
       case KEY_ESCAPE:
 	currentMenu->lastOn = itemOn;
+	if (currentMenu == &LobbyDef && mp_lobby_inflight)
+	{
+	    I_CancelNetworkInit();
+	    mp_lobby_inflight = 0;
+	    mp_lobby_launched = 0;
+	    mp_lobby_last_status = NET_STATUS_INIT;
+	}
 	M_ClearMenus ();
 	S_StartSound(NULL,sfx_swtchx);
 	return true;
@@ -2020,6 +2904,13 @@ boolean M_Responder (event_t* ev)
 	currentMenu->lastOn = itemOn;
 	if (currentMenu->prevMenu)
 	{
+	    if (currentMenu == &LobbyDef && mp_lobby_inflight)
+	    {
+		I_CancelNetworkInit();
+		mp_lobby_inflight = 0;
+		mp_lobby_launched = 0;
+		mp_lobby_last_status = NET_STATUS_INIT;
+	    }
 	    currentMenu = currentMenu->prevMenu;
 	    itemOn = currentMenu->lastOn;
 	    S_StartSound(NULL,sfx_swtchn);
@@ -2171,6 +3062,10 @@ void M_Ticker (void)
 	whichSkull ^= 1;
 	skullAnimCounter = 8;
     }
+
+    // Keep multiplayer lobby responsive while waiting for players / handshake.
+    if (menuactive && currentMenu == &LobbyDef && mp_lobby_inflight)
+        M_TickLobby();
 }
 
 
@@ -2196,13 +3091,8 @@ void M_Init (void)
     switch ( gamemode )
     {
       case commercial:
-	// This is used because DOOM 2 had only one HELP
-        //  page. I use CREDIT as second page now, but
-	//  kept this hack for educational purposes.
-	MainMenu[readthis] = MainMenu[quitdoom];
-	MainDef.numitems--;
-	MainDef.y += 8;
-	NewDef.prevMenu = &MainDef;
+	// DOOM II has only one help page; return to single player after selecting skill.
+	NewDef.prevMenu = &SinglePlayerDef;
 	ReadDef1.routine = M_DrawReadThis1;
 	ReadDef1.x = 330;
 	ReadDef1.y = 165;

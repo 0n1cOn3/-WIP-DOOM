@@ -6,11 +6,15 @@
 #include "doomstat.h"
 #include "m_argv.h"
 #include "i_net.h"
+#include "d_main.h"
+#include "doomstat.h"
 
 // Minimal global definitions required by the network layer.
 doomcom_t* doomcom;
 doomdata_t* netbuffer;
 boolean netgame;
+char *wadfiles[MAXWADFILES] = { NULL };
+char playername[16] = "net_harness";
 
 void I_Error(char *error, ...)
 {

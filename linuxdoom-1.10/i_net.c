@@ -59,6 +59,22 @@ rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 #define JOIN_MAGIC SDL_SwapBE32(0x444A4F49)      /* 'DJOI' */
 #define START_MAGIC SDL_SwapBE32(0x53544152)     /* 'STAR' */
 
+// Discovery and lobby protocol message types.
+// Discovery:
+//   PROBE:    [magic][type=1]
+//   ANNOUNCE: [magic][type=2][doomport_be16]
+// Lobby:
+//   JOIN_REQ: [magic][type=1][...]
+//   JOIN_ACK: [magic][type=2][...]
+//   START:    [magic][type=3][...]
+//   JOIN_NACK:[magic][type=4][...]
+static const Uint8 TYPE_JOIN_REQ = 1;
+static const Uint8 TYPE_JOIN_ACK = 2;
+static const Uint8 TYPE_START = 3;
+static const Uint8 TYPE_JOIN_NACK = 4;
+static const Uint8 TYPE_DISC_PROBE = 1;
+static const Uint8 TYPE_DISC_ANNOUNCE = 2;
+
 void    NetSend (void);
 boolean NetListen (void);
 
@@ -82,6 +98,7 @@ static UDPsocket             udpsocket;
 static UDPpacket            *recvpacket;
 static UDPpacket            *sendpacket;
 static IPaddress             sendaddress[MAXNETNODES];
+static boolean               sdl_net_inited = false;
 
 // Network configuration and state
 static doom_port_t doomport = DOOM_DEFAULT_PORT;
@@ -95,9 +112,28 @@ static uint8_t session_key[16];                 // 128-bit session key for MAC
 static uint8_t content_hash[16];                // hash over IWAD/PWAD set
 static IPaddress discovered[16];
 static int discovered_count = 0;
+static int net_total_players = 0;
+static int net_connected_players = 0;
+static char net_roster[MAXPLAYERS][16];
+static int net_start_skill = 2;
+static int net_start_episode = 1;
+static int net_start_map = 1;
 
 typedef Uint16 netorder_16;
 typedef Uint32 netorder_32;
+
+// Async network init state (Phase 3).
+static int net_init_state = NET_STATUS_INIT;
+static Uint32 net_init_start_ticks = 0;
+static Uint32 net_init_last_send_ticks = 0;
+static int net_init_is_host = 0;
+static int net_init_total_players = 0;
+static int net_init_have_clients = 0;
+static int net_init_reject_reason = 0;
+static int net_init_content_mismatch = 0;
+
+static UDPsocket discovery_socket;
+static UDPpacket *discovery_packet;
 
 /*
  * Parse a positive integer from a command-line argument string.
@@ -156,9 +192,63 @@ void I_SetNetPacketLoss(int percent)
     net_packet_loss = ClampInt(percent, 0, 99);
 }
 
+Uint16 I_GetNetDefaultPort(void)
+{
+    return (Uint16)doomport;
+}
+
 void I_SetVanillaOnly(int on)
 {
     net_vanilla_only = on ? true : false;
+}
+
+void I_SetNetStartSettings(int skill, int episode, int map)
+{
+    // Keep within DOOM's expected ranges.
+    net_start_skill = ClampInt(skill, 1, 5);
+    net_start_episode = ClampInt(episode, 1, 4);
+    net_start_map = ClampInt(map, 1, 32);
+}
+
+void I_GetNetStartSettings(int *skill, int *episode, int *map)
+{
+    if (skill) *skill = net_start_skill;
+    if (episode) *episode = net_start_episode;
+    if (map) *map = net_start_map;
+}
+
+void I_GetSessionInfo(uint8_t key16[16], uint8_t hash16[16], int *vanilla_only)
+{
+    if (key16)
+        memcpy(key16, session_key, 16);
+    if (hash16)
+        memcpy(hash16, content_hash, 16);
+    if (vanilla_only)
+        *vanilla_only = net_vanilla_only ? 1 : 0;
+}
+
+int I_GetLobbyPlayerCount(void)
+{
+    return net_connected_players;
+}
+
+int I_GetTotalPlayers(void)
+{
+    return net_total_players;
+}
+
+void I_GetLobbyRoster(char names[][16], int max)
+{
+    int n = (net_total_players < max) ? net_total_players : max;
+    for (int i = 0; i < n; ++i)
+    {
+        memcpy(names[i], net_roster[i], 16);
+    }
+}
+
+int I_WasNetContentMismatch(void)
+{
+    return net_init_content_mismatch ? 1 : 0;
 }
 
 int I_GetDiscoveredServers(IPaddress *out, int max)
@@ -189,8 +279,8 @@ int I_RunLanDiscovery(IPaddress *out, int max)
 
     uint8_t probe[5] = {0};
     SDLNet_Write32(DISCOVERY_MAGIC, probe);
-    probe[4] = 1; // PROBE
-    pkt->data = probe;
+    probe[4] = TYPE_DISC_PROBE;
+    memcpy(pkt->data, probe, sizeof(probe));
     pkt->len = 5;
     pkt->address = bcast;
     SDLNet_UDP_Send(dsock, -1, pkt);
@@ -200,11 +290,18 @@ int I_RunLanDiscovery(IPaddress *out, int max)
     {
         if (SDLNet_UDP_Recv(dsock, pkt) > 0)
         {
-            if (pkt->len >= 5 && SDLNet_Read32(pkt->data) == DISCOVERY_MAGIC && pkt->data[4] == 2)
+            if (pkt->len >= 5 && SDLNet_Read32(pkt->data) == DISCOVERY_MAGIC && pkt->data[4] == TYPE_DISC_ANNOUNCE)
             {
-                discovered[discovered_count++] = pkt->address;
+                IPaddress a = pkt->address;
+                // Older announces didn't include a port. Newer ones include [doomport_be16].
+                if (pkt->len >= 7)
+                    memcpy(&a.port, pkt->data + 5, sizeof(a.port));
+                else
+                    a.port = SDL_SwapBE16(doomport);
+
+                discovered[discovered_count++] = a;
                 if (out && discovered_count <= max)
-                    out[discovered_count-1] = pkt->address;
+                    out[discovered_count-1] = a;
             }
         }
     }
@@ -444,6 +541,11 @@ static boolean ResolveAddressSpec(const char *spec,
     return true;
 }
 
+int I_ResolveNetAddress(const char *spec, IPaddress *out)
+{
+    return ResolveAddressSpec(spec, doomport, out) ? 1 : 0;
+}
+
 static void EnsurePacketCapacity(int length)
 {
     if (!recvpacket || recvpacket->maxlen < length)
@@ -545,6 +647,456 @@ static void NetListenThunk(void)
         doomcom->remotenode = -1;
 }
 
+static void CloseDiscoverySocket(void)
+{
+    if (discovery_packet)
+    {
+        SDLNet_FreePacket(discovery_packet);
+        discovery_packet = NULL;
+    }
+    if (discovery_socket)
+    {
+        SDLNet_UDP_Close(discovery_socket);
+        discovery_socket = NULL;
+    }
+}
+
+static void ResetAsyncInitState(void)
+{
+    net_init_state = NET_STATUS_INIT;
+    net_init_start_ticks = 0;
+    net_init_last_send_ticks = 0;
+    net_init_is_host = 0;
+    net_init_total_players = 0;
+    net_init_have_clients = 0;
+    net_init_reject_reason = 0;
+    net_init_content_mismatch = 0;
+    assigned_node = -1;
+}
+
+void I_SetConnectTarget(IPaddress addr)
+{
+    connect_target = addr;
+}
+
+void I_CancelNetworkInit(void)
+{
+    // Only cancel pre-game lobby init. If netgame is already active, leave it alone.
+    if (netgame)
+        return;
+
+    CloseDiscoverySocket();
+
+    if (udpsocket)
+    {
+        SDLNet_UDP_Close(udpsocket);
+        udpsocket = NULL;
+    }
+
+    // Keep recvpacket/sendpacket allocated (safe), but reset lobby-visible state.
+    net_total_players = 0;
+    net_connected_players = 0;
+    memset(net_roster, 0, sizeof(net_roster));
+    memset(sendaddress, 0, sizeof(sendaddress));
+    memset(session_key, 0, sizeof(session_key));
+    memset(content_hash, 0, sizeof(content_hash));
+
+    ResetAsyncInitState();
+}
+
+void I_InitNetworkAsync(int is_host, int player_count)
+{
+    // Cancel any in-flight init first.
+    if (net_init_state != NET_STATUS_INIT && net_init_state != NET_STATUS_READY)
+        I_CancelNetworkInit();
+
+    // SDLNet is initialized during startup in I_InitNetwork(), but keep this robust.
+    if (!sdl_net_inited)
+    {
+        if (SDLNet_Init() == -1)
+        {
+            net_init_state = NET_STATUS_ERROR;
+            return;
+        }
+        sdl_net_inited = true;
+    }
+
+    InitNetworkSimulation();
+
+    // Bind game port.
+    if (!udpsocket)
+    {
+        udpsocket = SDLNet_UDP_Open(doomport);
+        if (!udpsocket)
+        {
+            net_init_state = NET_STATUS_ERROR;
+            return;
+        }
+    }
+
+    // Packet buffers large enough for both doomdata_t and lobby control messages.
+    EnsurePacketCapacity(sizeof(doomdata_t));
+
+    // Compute local content hash up front for both host and client.
+    ComputeContentHash(content_hash);
+
+    net_init_is_host = is_host ? 1 : 0;
+    net_init_total_players = net_init_is_host ? ClampInt(player_count, 2, MAXNETNODES) : 0;
+    net_init_have_clients = 0;
+    net_init_reject_reason = 0;
+    net_init_content_mismatch = 0;
+    net_init_start_ticks = SDL_GetTicks();
+    net_init_last_send_ticks = 0;
+    net_init_state = NET_STATUS_WAITING;
+
+    // Lobby-visible state.
+    memset(net_roster, 0, sizeof(net_roster));
+    strncpy(net_roster[0], playername, 15);
+    net_total_players = net_init_is_host ? net_init_total_players : 0;
+    net_connected_players = net_init_is_host ? 1 : 0;
+
+    if (net_init_is_host)
+    {
+        // Enforce "vanilla-only" as "host must not load PWADs".
+        if (net_vanilla_only && wadfiles[1] != NULL)
+        {
+            net_init_state = NET_STATUS_ERROR;
+            return;
+        }
+
+        Net_GenerateSessionKey();
+        I_SetNetStartSettings(net_start_skill, net_start_episode, net_start_map);
+
+        // Listen/respond for LAN discovery.
+        if (!discovery_socket)
+        {
+            discovery_socket = SDLNet_UDP_Open(DISCOVERY_PORT);
+            if (discovery_socket)
+                discovery_packet = SDLNet_AllocPacket(64);
+        }
+    }
+    else
+    {
+        // Client side: pre-fill roster slot with our own name (helps BASIC lobby).
+        memset(net_roster, 0, sizeof(net_roster));
+        if (assigned_node >= 1 && assigned_node < MAXPLAYERS)
+            strncpy(net_roster[assigned_node], playername, 15);
+    }
+}
+
+static void SendDiscoveryAnnounce(void)
+{
+    if (!discovery_socket || !discovery_packet)
+        return;
+
+    // [magic][type=ANNOUNCE][doomport_be16]
+    SDLNet_Write32(DISCOVERY_MAGIC, discovery_packet->data);
+    discovery_packet->data[4] = TYPE_DISC_ANNOUNCE;
+    SDLNet_Write16(doomport, discovery_packet->data + 5);
+    discovery_packet->len = 7;
+    // Reply directly to last probe sender; address set by caller. If unset, broadcast.
+    SDLNet_UDP_Send(discovery_socket, -1, discovery_packet);
+}
+
+static void PollDiscoverySocket(void)
+{
+    if (!discovery_socket || !discovery_packet)
+        return;
+
+    // Respond to probes.
+    while (SDLNet_UDP_Recv(discovery_socket, discovery_packet) > 0)
+    {
+        if (discovery_packet->len >= 5 &&
+            SDLNet_Read32(discovery_packet->data) == DISCOVERY_MAGIC &&
+            discovery_packet->data[4] == TYPE_DISC_PROBE)
+        {
+            // Reply with ANNOUNCE back to the requester.
+            SendDiscoveryAnnounce();
+        }
+    }
+}
+
+static void Host_ProcessJoinReq(void)
+{
+    if (recvpacket->len < 38)
+        return;
+    if (SDLNet_Read32(recvpacket->data) != JOIN_MAGIC)
+        return;
+    if (recvpacket->data[4] != TYPE_JOIN_REQ)
+        return;
+
+    // Always require exact content match for determinism and mod gating.
+    if (memcmp(recvpacket->data + 6, content_hash, 16) != 0)
+    {
+        net_init_content_mismatch = 1;
+        uint8_t nack[8] = {0};
+        SDLNet_Write32(JOIN_MAGIC, nack);
+        nack[4] = TYPE_JOIN_NACK;
+        nack[5] = 1; // content mismatch
+        memcpy(sendpacket->data, nack, sizeof(nack));
+        sendpacket->len = (int)sizeof(nack);
+        sendpacket->address = recvpacket->address;
+        SDLNet_UDP_Send(udpsocket, -1, sendpacket);
+        return;
+    }
+
+    // Ignore duplicates.
+    boolean known = false;
+    for (int i = 1; i <= net_init_have_clients; ++i)
+    {
+        if (NetAddressesEqual(&recvpacket->address, &sendaddress[i]))
+        {
+            known = true;
+            break;
+        }
+    }
+    if (known)
+        return;
+
+    if (net_init_have_clients >= (net_init_total_players - 1))
+        return;
+
+    net_init_have_clients++;
+    sendaddress[net_init_have_clients] = recvpacket->address;
+
+    // Store client name (16 bytes at offset 22)
+    memset(net_roster[net_init_have_clients], 0, 16);
+    memcpy(net_roster[net_init_have_clients], recvpacket->data + 22, 16);
+
+    net_connected_players = net_init_have_clients + 1;
+    net_total_players = net_init_total_players;
+
+    // JOIN_ACK: [magic][type][node][total][vanilla][session_key16]
+    uint8_t ack[24] = {0};
+    SDLNet_Write32(JOIN_MAGIC, ack);
+    ack[4] = TYPE_JOIN_ACK;
+    ack[5] = (uint8_t)net_init_have_clients;
+    ack[6] = (uint8_t)net_init_total_players;
+    ack[7] = net_vanilla_only ? 1 : 0;
+    memcpy(ack + 8, session_key, 16);
+    memcpy(sendpacket->data, ack, sizeof(ack));
+    sendpacket->len = (int)sizeof(ack);
+    sendpacket->address = recvpacket->address;
+    SDLNet_UDP_Send(udpsocket, -1, sendpacket);
+}
+
+static void Host_SendStart(void)
+{
+    int have_clients = net_init_have_clients;
+
+    // START: [magic][type][total][client_count][flags][skill][episode][map][pad]
+    //        [client_addrs...]
+    //        [roster[MAXPLAYERS][16]]
+    //        [content_hash16]
+    uint8_t startbuf[12 + sizeof(IPaddress) * (MAXNETNODES - 1) + (MAXPLAYERS * 16) + 16] = {0};
+    SDLNet_Write32(START_MAGIC, startbuf);
+    startbuf[4] = TYPE_START;
+    startbuf[5] = (uint8_t)net_init_total_players;
+    startbuf[6] = (uint8_t)have_clients;
+    startbuf[7] = 0; // flags (reserved)
+    startbuf[8] = (uint8_t)ClampInt(net_start_skill, 1, 5);
+    startbuf[9] = (uint8_t)ClampInt(net_start_episode, 1, 4);
+    startbuf[10] = (uint8_t)ClampInt(net_start_map, 1, 32);
+    startbuf[11] = 0;
+
+    memcpy(startbuf + 12, &sendaddress[1], sizeof(IPaddress) * have_clients);
+    memcpy(startbuf + 12 + sizeof(IPaddress) * have_clients, net_roster, MAXPLAYERS * 16);
+    memcpy(startbuf + 12 + sizeof(IPaddress) * have_clients + (MAXPLAYERS * 16), content_hash, 16);
+
+    int total_len = 12 + (int)(sizeof(IPaddress) * have_clients) + (MAXPLAYERS * 16) + 16;
+    for (int i = 1; i <= have_clients; ++i)
+    {
+        memcpy(sendpacket->data, startbuf, (size_t)total_len);
+        sendpacket->len = total_len;
+        sendpacket->address = sendaddress[i];
+        SDLNet_UDP_Send(udpsocket, -1, sendpacket);
+    }
+}
+
+static void Client_SendJoinReq(void)
+{
+    // JOIN_REQ: [magic][type][pad][content_hash16][playername16]
+    uint8_t joinreq[38] = {0};
+    SDLNet_Write32(JOIN_MAGIC, joinreq);
+    joinreq[4] = TYPE_JOIN_REQ;
+    memcpy(joinreq + 6, content_hash, 16);
+    memset(joinreq + 22, 0, 16);
+    strncpy((char *)(joinreq + 22), playername, 15);
+
+    memcpy(sendpacket->data, joinreq, sizeof(joinreq));
+    sendpacket->len = (int)sizeof(joinreq);
+    sendpacket->address = connect_target;
+    SDLNet_UDP_Send(udpsocket, -1, sendpacket);
+}
+
+static void Client_ProcessLobbyPackets(void)
+{
+    Uint32 magic;
+    Uint8 type;
+
+    if (recvpacket->len < 5)
+        return;
+
+    magic = SDLNet_Read32(recvpacket->data);
+    type = recvpacket->data[4];
+
+    if (magic == JOIN_MAGIC && type == TYPE_JOIN_ACK && recvpacket->len >= 24)
+    {
+        assigned_node = recvpacket->data[5];
+        net_init_total_players = recvpacket->data[6];
+        memcpy(session_key, recvpacket->data + 8, 16);
+        net_total_players = net_init_total_players;
+        // Client doesn't know connected count yet.
+        if (net_connected_players <= 0)
+            net_connected_players = 1;
+        return;
+    }
+
+    if (magic == START_MAGIC && type == TYPE_START && recvpacket->len >= 8)
+    {
+        int total;
+        int client_count;
+        int need;
+
+        if (recvpacket->len < 12)
+            return;
+
+        total = recvpacket->data[5];
+        client_count = recvpacket->data[6];
+        need = 12 + client_count * (int)sizeof(IPaddress) + (MAXPLAYERS * 16) + 16;
+        if (recvpacket->len < need)
+            return;
+
+        if (assigned_node < 1)
+        {
+            // START without an assigned node isn't usable (no way to know our player index).
+            net_init_state = NET_STATUS_ERROR;
+            return;
+        }
+
+        net_start_skill = recvpacket->data[8];
+        net_start_episode = recvpacket->data[9];
+        net_start_map = recvpacket->data[10];
+
+        net_init_total_players = total;
+        net_total_players = total;
+        net_connected_players = total;
+
+        sendaddress[0] = connect_target;
+        memcpy(&sendaddress[1], recvpacket->data + 12, sizeof(IPaddress) * client_count);
+        memcpy(net_roster, recvpacket->data + 12 + sizeof(IPaddress) * client_count, MAXPLAYERS * 16);
+
+        if (memcmp(content_hash,
+                   recvpacket->data + 12 + sizeof(IPaddress) * client_count + (MAXPLAYERS * 16),
+                   16) != 0)
+        {
+            net_init_state = NET_STATUS_ERROR;
+            return;
+        }
+
+        net_init_state = NET_STATUS_READY;
+        return;
+    }
+
+    if (magic == JOIN_MAGIC && type == TYPE_JOIN_NACK && recvpacket->len >= 6)
+    {
+        net_init_reject_reason = recvpacket->data[5];
+        if (net_init_reject_reason == 1)
+            net_init_content_mismatch = 1;
+        net_init_state = NET_STATUS_REJECTED;
+        return;
+    }
+}
+
+int I_PollNetworkInit(void)
+{
+    if (net_init_state == NET_STATUS_INIT || net_init_state == NET_STATUS_READY ||
+        net_init_state == NET_STATUS_REJECTED || net_init_state == NET_STATUS_TIMEOUT ||
+        net_init_state == NET_STATUS_ERROR)
+        return net_init_state;
+
+    // Timeout budget: 30s.
+    if ((SDL_GetTicks() - net_init_start_ticks) > 30000)
+    {
+        net_init_state = NET_STATUS_TIMEOUT;
+        return net_init_state;
+    }
+
+    if (!udpsocket || !recvpacket || !sendpacket)
+    {
+        net_init_state = NET_STATUS_ERROR;
+        return net_init_state;
+    }
+
+    if (net_init_is_host)
+    {
+        PollDiscoverySocket();
+
+        while (SDLNet_UDP_Recv(udpsocket, recvpacket) > 0)
+            Host_ProcessJoinReq();
+    }
+    else
+    {
+        // Retry JOIN_REQ every second until we get START or reject.
+        if (net_init_last_send_ticks == 0 || (SDL_GetTicks() - net_init_last_send_ticks) > 1000)
+        {
+            Client_SendJoinReq();
+            net_init_last_send_ticks = SDL_GetTicks();
+        }
+
+        while (SDLNet_UDP_Recv(udpsocket, recvpacket) > 0)
+            Client_ProcessLobbyPackets();
+    }
+
+    return net_init_state;
+}
+
+int I_LobbyStartGame(void)
+{
+    if (!net_init_is_host)
+        return 0;
+    if (net_init_state != NET_STATUS_WAITING)
+        return 0;
+    if (!udpsocket || !sendpacket)
+        return 0;
+
+    // Host can start once at least 2 players are present.
+    if (net_connected_players < 2)
+        return 0;
+
+    // Start with currently connected players (host + joined clients).
+    int start_total = net_connected_players;
+    int have_clients = start_total - 1;
+
+    net_init_total_players = start_total;
+    net_total_players = start_total;
+    net_init_have_clients = have_clients;
+
+    Host_SendStart();
+
+    net_init_state = NET_STATUS_READY;
+    return 1;
+}
+
+void I_FinishNetworkInit(void)
+{
+    if (net_init_state != NET_STATUS_READY)
+        return;
+
+    netsend = NetSend;
+    netget = NetListenThunk;
+    netgame = true;
+
+    doomcom->id = DOOMCOM_ID;
+    doomcom->numnodes = net_total_players;
+    doomcom->numplayers = net_total_players;
+    doomcom->consoleplayer = (assigned_node >= 0) ? assigned_node : 0;
+    netbuffer = &doomcom->data;
+
+    // Lobby init complete; discovery is not needed once gameplay starts.
+    CloseDiscoverySocket();
+}
+
 void I_InitNetwork (void)
 {
     int                 i;
@@ -556,6 +1108,7 @@ void I_InitNetwork (void)
 
     if (SDLNet_Init() == -1)
         I_Error("SDLNet_Init failed: %s", SDLNet_GetError());
+    sdl_net_inited = true;
 
     InitNetworkSimulation();
 
@@ -614,165 +1167,31 @@ void I_InitNetwork (void)
     // host/client secure lobby
     if (use_host_flow || use_client_flow)
     {
-        udpsocket = SDLNet_UDP_Open(doomport);
-        if (!udpsocket)
-            I_Error("BindToPort: %s", SDLNet_GetError());
+        // Phase 3: keep CLI behavior but drive it via the async state machine.
+        I_InitNetworkAsync(use_host_flow ? 1 : 0, desired_players);
 
-        EnsurePacketCapacity(sizeof(doomdata_t));
-        Net_GenerateSessionKey();
-        ComputeContentHash(content_hash);
-
-        const Uint8 TYPE_JOIN_REQ = 1;
-        const Uint8 TYPE_JOIN_ACK = 2;
-        const Uint8 TYPE_START = 3;
-        const Uint8 TYPE_JOIN_NACK = 4;
-        const Uint8 TYPE_DISC_PROBE = 1;
-        const Uint8 TYPE_DISC_ANNOUNCE = 2;
-
-        if (use_host_flow)
+        start_ticks = SDL_GetTicks();
+        while (1)
         {
-            int have_clients = 0;
-            start_ticks = SDL_GetTicks();
-            Uint32 wait_ms = 10000;
+            int st = I_PollNetworkInit();
+            // CLI compatibility: when running with -host N, auto-start once N players are present.
+            if (use_host_flow && st == NET_STATUS_WAITING && I_GetLobbyPlayerCount() >= desired_players)
+                I_LobbyStartGame();
+            if (st == NET_STATUS_READY)
+                break;
+            if (st == NET_STATUS_REJECTED)
+                I_Error("Join rejected (reason %d)", net_init_reject_reason);
+            if (st == NET_STATUS_TIMEOUT)
+                I_Error("Network init timed out");
+            if (st == NET_STATUS_ERROR)
+                I_Error("Network init failed");
 
-            // one-shot announce
-            UDPsocket dsock = SDLNet_UDP_Open(0);
-            UDPpacket *dpkt = SDLNet_AllocPacket(32);
-            if (dsock && dpkt)
-            {
-                IPaddress b;
-                b.host = 0xFFFFFFFF;
-                b.port = SDL_SwapBE16(DISCOVERY_PORT);
-                SDLNet_Write32(DISCOVERY_MAGIC, dpkt->data);
-                dpkt->data[4] = TYPE_DISC_ANNOUNCE;
-                dpkt->len = 5;
-                dpkt->address = b;
-                SDLNet_UDP_Send(dsock, -1, dpkt);
-            }
-
-            while ((SDL_GetTicks() - start_ticks) < wait_ms && have_clients < desired_players - 1)
-            {
-                if (SDLNet_UDP_Recv(udpsocket, recvpacket) > 0)
-                {
-                    if (recvpacket->len >= 22 &&
-                        SDLNet_Read32(recvpacket->data) == JOIN_MAGIC &&
-                        recvpacket->data[4] == TYPE_JOIN_REQ)
-                    {
-                        if (net_vanilla_only && memcmp(recvpacket->data + 6, content_hash, 16) != 0)
-                        {
-                            uint8_t nack[8] = {0};
-                            SDLNet_Write32(JOIN_MAGIC, nack);
-                            nack[4] = TYPE_JOIN_NACK;
-                            nack[5] = 1;
-                            sendpacket->data = nack;
-                            sendpacket->len = sizeof(nack);
-                            sendpacket->address = recvpacket->address;
-                            SDLNet_UDP_Send(udpsocket, -1, sendpacket);
-                            continue;
-                        }
-                        boolean known = false;
-                        for (i = 1; i <= have_clients; ++i)
-                            if (NetAddressesEqual(&recvpacket->address, &sendaddress[i])) known = true;
-                        if (!known && have_clients < desired_players - 1)
-                        {
-                            have_clients++;
-                            sendaddress[have_clients] = recvpacket->address;
-                            uint8_t ack[24] = {0};
-                            SDLNet_Write32(JOIN_MAGIC, ack);
-                            ack[4] = TYPE_JOIN_ACK;
-                            ack[5] = (uint8_t)have_clients;
-                            ack[6] = (uint8_t)desired_players;
-                            ack[7] = net_vanilla_only ? 1 : 0;
-                            memcpy(ack + 8, session_key, 16);
-                            sendpacket->data = ack;
-                            sendpacket->len = sizeof(ack);
-                            sendpacket->address = recvpacket->address;
-                            SDLNet_UDP_Send(udpsocket, -1, sendpacket);
-                        }
-                    }
-                }
-                SDL_Delay(10);
-            }
-            if (have_clients < desired_players - 1)
-                I_Error("Not enough players joined");
-
-            uint8_t startbuf[8 + sizeof(IPaddress) * (MAXNETNODES - 1) + 16] = {0};
-            SDLNet_Write32(START_MAGIC, startbuf);
-            startbuf[4] = TYPE_START;
-            startbuf[5] = (uint8_t)desired_players;
-            startbuf[6] = (uint8_t)have_clients;
-            memcpy(startbuf + 8, &sendaddress[1], sizeof(IPaddress) * have_clients);
-            memcpy(startbuf + 8 + sizeof(IPaddress) * have_clients, content_hash, 16);
-            for (i = 1; i <= have_clients; ++i)
-            {
-                sendpacket->data = startbuf;
-                sendpacket->len = 8 + sizeof(IPaddress) * have_clients + 16;
-                sendpacket->address = sendaddress[i];
-                SDLNet_UDP_Send(udpsocket, -1, sendpacket);
-            }
-
-            doomcom->consoleplayer = 0;
-            doomcom->numnodes = desired_players;
-            doomcom->numplayers = desired_players;
-        }
-        else // client
-        {
-            uint8_t joinreq[22] = {0};
-            SDLNet_Write32(JOIN_MAGIC, joinreq);
-            joinreq[4] = TYPE_JOIN_REQ;
-            memcpy(joinreq + 6, content_hash, 16);
-            sendpacket->data = joinreq;
-            sendpacket->len = sizeof(joinreq);
-            sendpacket->address = connect_target;
-            SDLNet_UDP_Send(udpsocket, -1, sendpacket);
-
-            boolean got_ack = false, got_start = false;
-            int total = 0, client_count = 0;
-            start_ticks = SDL_GetTicks();
-            Uint32 wait_ms = 10000;
-            while ((SDL_GetTicks() - start_ticks) < wait_ms && !got_start)
-            {
-                if (SDLNet_UDP_Recv(udpsocket, recvpacket) > 0)
-                {
-                    Uint32 magic = SDLNet_Read32(recvpacket->data);
-                    Uint8 type = recvpacket->data[4];
-                    if (magic == JOIN_MAGIC && type == TYPE_JOIN_ACK && recvpacket->len >= 24)
-                    {
-                        assigned_node = recvpacket->data[5];
-                        total = recvpacket->data[6];
-                        memcpy(session_key, recvpacket->data + 8, 16);
-                        got_ack = true;
-                    }
-                    else if (magic == START_MAGIC && type == TYPE_START && recvpacket->len >= 8)
-                    {
-                        total = recvpacket->data[5];
-                        client_count = recvpacket->data[6];
-                        int need = 8 + client_count * (int)sizeof(IPaddress) + 16;
-                        if (recvpacket->len >= need)
-                        {
-                            sendaddress[0] = connect_target;
-                            memcpy(&sendaddress[1], recvpacket->data + 8, sizeof(IPaddress) * client_count);
-                            if (memcmp(content_hash, recvpacket->data + 8 + sizeof(IPaddress) * client_count, 16) != 0)
-                                I_Error("Content hash mismatch with host");
-                            got_start = true;
-                        }
-                    }
-                    else if (magic == JOIN_MAGIC && type == TYPE_JOIN_NACK)
-                    {
-                        I_Error("Join rejected (reason %d)", recvpacket->data[5]);
-                    }
-                }
-                SDL_Delay(10);
-            }
-            if (!got_ack || !got_start || assigned_node < 1)
-                I_Error("Failed to join host");
-            doomcom->consoleplayer = assigned_node;
-            doomcom->numnodes = total;
-            doomcom->numplayers = total;
+            if ((SDL_GetTicks() - start_ticks) > 60000)
+                I_Error("Network init stalled");
+            SDL_Delay(10);
         }
 
-        doomcom->id = DOOMCOM_ID;
-        netbuffer = &doomcom->data;
+        I_FinishNetworkInit();
         return;
     }
 
@@ -816,6 +1235,7 @@ void I_ShutdownNetwork(void)
     }
 
     SDLNet_Quit();
+    sdl_net_inited = false;
 
     if (doomcom)
     {

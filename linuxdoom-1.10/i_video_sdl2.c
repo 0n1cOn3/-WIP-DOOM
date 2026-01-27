@@ -272,20 +272,12 @@ void I_InitGraphics(void)
         I_Error("SDL renderer creation failed: %s", SDL_GetError());
     }
 
-    // Set logical rendering size with proper aspect ratio handling
-    // For 4:3, use 320x240 to match the visual appearance of original DOOM
-    int logical_width = ScreenWidth;
-    int logical_height = (vid_aspect == 1)
-        ? (int)(ScreenWidth * 9.0f / 16.0f)  // widescreen: 16:9
-        : (int)(ScreenWidth * 3.0f / 4.0f);  // standard: 4:3 = 240
-
-    if (vid_aspect == 2)
-    {
-        // stretch: use actual game resolution
-        logical_height = ScreenHeight;
-    }
-
-    SDL_RenderSetLogicalSize(renderer, logical_width, logical_height);
+    // Set logical rendering size.
+    // Keep the game at its native 320x200 logical coordinate system for
+    // all modes; SDL will letterbox/pillarbox as needed to preserve aspect.
+    // - Standard and widescreen both use 320x200 logical space (pillarbox for 16:9).
+    // - Stretch mode uses the same logical size but will fill the window via scaling.
+    SDL_RenderSetLogicalSize(renderer, ScreenWidth, ScreenHeight);
 
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ScreenWidth, ScreenHeight);
     if (!texture)

@@ -202,6 +202,7 @@ extern int	showMessages;
 extern int	detailLevel;
 
 extern int	screenblocks;
+extern int      mp_verbose_info;
 
 extern int	showMessages;
 
@@ -295,6 +296,7 @@ default_t       defaults[] =
     {"vid_fullscreen",&vid_fullscreen, DEFAULT_INT, 0, NULL, 0, 0},
     {"vid_aspect",&vid_aspect, DEFAULT_INT, 0, NULL, 0, 0},
     {"vid_integer_scale",&vid_integer_scale, DEFAULT_INT, 1, NULL, 0, 0},
+    {"mp_verbose_info",&mp_verbose_info, DEFAULT_INT, 0, NULL, 0, 0},
     {"net_latency_ms",&net_latency_ms, DEFAULT_INT, 0, NULL, 0, 0},
     {"net_packet_loss",&net_packet_loss, DEFAULT_INT, 0, NULL, 0, 0},
 

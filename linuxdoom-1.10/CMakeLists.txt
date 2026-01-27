@@ -55,6 +55,9 @@ find_package(SDL2 REQUIRED)
 list(APPEND VIDEO_SOURCES ${SOURCE_DIR}/i_video_sdl2.c)
 list(APPEND VIDEO_LIBS SDL2::SDL2)
 
+# Lightweight crypto (BLAKE2s for MAC/content hashing)
+list(APPEND DOOM_SOURCES ${SOURCE_DIR}/blake2s.c)
+
 # Network backend: SDL2_net
 # If system SDL2_net is not available, use internal compatibility stub
 find_package(PkgConfig QUIET)
@@ -128,6 +131,7 @@ target_link_libraries(linuxdoom PRIVATE ${VIDEO_LIBS} ${NET_LIBS} Threads::Threa
 add_executable(net_harness
   ${SOURCE_DIR}/net_harness.c
   ${SOURCE_DIR}/m_argv.c
+  ${SOURCE_DIR}/blake2s.c
   ${NET_SOURCES}
 )
 

@@ -35,6 +35,7 @@
 
 #define MAXWADFILES             20
 extern char*		wadfiles[MAXWADFILES];
+extern char             playername[16];
 
 void D_AddFile (char *file);
 

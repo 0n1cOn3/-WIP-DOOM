@@ -93,6 +93,9 @@ void D_DoomLoop (void);
 
 char*		wadfiles[MAXWADFILES];
 
+// Lobby/player display name (16 bytes, NUL-terminated).
+char            playername[16] = "PLAYER";
+
 
 boolean		devparm;	// started game with -devparm
 boolean         nomonsters;	// checkparm of -nomonsters
@@ -747,6 +750,35 @@ void IdentifyVersion (void)
 	D_AddFile (DEVMAPS"cdata/pnames.lmp");
 	strcpy (basedefault,DEVDATA"default.cfg");
 	return;
+    }
+
+    // Player name (Phase 2): -player <name>, fallback to hostname or "PLAYER"
+    {
+        int p = M_CheckParm("-player");
+        if (p && p < myargc - 1)
+        {
+            strncpy(playername, myargv[p + 1], sizeof(playername) - 1);
+            playername[sizeof(playername) - 1] = '\0';
+        }
+        else
+        {
+            const char *hn = getenv("HOSTNAME");
+            if (hn && *hn)
+            {
+                strncpy(playername, hn, sizeof(playername) - 1);
+                playername[sizeof(playername) - 1] = '\0';
+            }
+            else
+            {
+                char hostbuf[256];
+                if (gethostname(hostbuf, sizeof(hostbuf)) == 0 && hostbuf[0])
+                {
+                    hostbuf[sizeof(hostbuf) - 1] = '\0';
+                    strncpy(playername, hostbuf, sizeof(playername) - 1);
+                    playername[sizeof(playername) - 1] = '\0';
+                }
+            }
+        }
     }
 
     if ( !access (doom2fwad,R_OK) )

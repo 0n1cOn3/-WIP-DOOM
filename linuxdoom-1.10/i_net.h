@@ -28,6 +28,7 @@
 #pragma interface
 #endif
 
+#include <SDL_net.h>
 #include "d_net.h"
 
 // Called by D_DoomMain.
@@ -48,6 +49,36 @@ int I_GetNetLatencyMs(void);
 int I_GetNetPacketLoss(void);
 void I_SetNetLatencyMs(int ms);
 void I_SetNetPacketLoss(int percent);
+Uint16 I_GetNetDefaultPort(void);
+int I_ResolveNetAddress(const char *spec, IPaddress *out);
+void I_SetVanillaOnly(int on);
+void I_SetNetStartSettings(int skill, int episode, int map);
+void I_GetNetStartSettings(int *skill, int *episode, int *map);
+int I_RunLanDiscovery(IPaddress *out, int max);
+int I_GetDiscoveredServers(IPaddress *out, int max);
+void I_GetSessionInfo(uint8_t key16[16], uint8_t hash16[16], int *vanilla_only);
+int I_GetLobbyPlayerCount(void);
+int I_GetTotalPlayers(void);
+void I_GetLobbyRoster(char names[][16], int max);
+int I_WasNetContentMismatch(void);
+
+// Async network init for lobby UI (Phase 3).
+enum
+{
+    NET_STATUS_INIT = 0,
+    NET_STATUS_WAITING,
+    NET_STATUS_READY,
+    NET_STATUS_REJECTED,
+    NET_STATUS_TIMEOUT,
+    NET_STATUS_ERROR
+};
+
+void I_InitNetworkAsync(int is_host, int player_count);
+int I_PollNetworkInit(void);        // returns NET_STATUS_*
+void I_FinishNetworkInit(void);     // completes setup when NET_STATUS_READY
+void I_CancelNetworkInit(void);     // cancel/cleanup
+void I_SetConnectTarget(IPaddress addr); // for menu-driven connects
+int I_LobbyStartGame(void);         // host-only: broadcast START and transition to READY
 
 #endif
 //-----------------------------------------------------------------------------

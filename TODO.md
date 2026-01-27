@@ -26,6 +26,11 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - ✅ **DONE:** Retained `sdl_net_stub/` for systems without SDL2_net package (superior to legacy BSD code with modern `getaddrinfo()` and full IPv6 support).
 - ✅ **DONE:** Network latency/packet-loss handling hooks integrated for testing and field deployment.
 - ✅ **DONE:** Updated CMakeLists.txt to remove conditional network backend selection; build now always uses SDL2_net with stub fallback.
+- ✅ **DONE:** **Secure transport:** All packets now carry a BLAKE2s MAC keyed by a per-session 128-bit key; lobby/session key exchange implemented for `-host`/`-connect` and the in-game lobby.
+- ✅ **DONE:** **Lobby UI & discovery:** In-game Multiplayer menu (Host/Join LAN/Join by address) with LAN discovery list, direct-connect entry, and user-friendly status/errors (with optional rich details).
+- ✅ **DONE:** **Content integrity:** Exchange IWAD/PWAD hash set before START; host “vanilla only” toggle available (gates content and joins).
+- 🔲 **WAN traversal:** Optional introducer-based UDP hole punching (no UPnP) with clear failure messaging; keep direct connect as fallback.
+- 🔲 **Rate limits & logging:** Expose `-netlog`, throttle join/command bursts, and surface kick/mismatch reasons in UI.
 
 ## Audio
 - ✅ **DONE:** Unify audio on SDL2 and drop the external `sndserver`: refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively and simplify command-line flags that referenced the helper process.

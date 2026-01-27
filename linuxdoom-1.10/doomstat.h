@@ -90,6 +90,8 @@ extern  boolean         respawnmonsters;
 
 // Netgame? Only true if >1 player.
 extern  boolean	netgame;
+// Local player's displayed name (for lobby/roster).
+extern char playername[16];
 
 // Flag: true only if started as net deathmatch.
 // An enum might handle altdeath/cooperative better.
