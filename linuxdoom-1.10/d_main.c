@@ -273,6 +273,26 @@ void D_Display (void)
     if (gamestate == GS_LEVEL && !automapactive && gametic)
 	R_RenderPlayerView (&players[displayplayer]);
 
+    // Apply pause overlay darkening when menu is active
+    if (menuactive && gamestate == GS_LEVEL && !automapactive && gametic)
+    {
+	// Draw a semi-transparent darkening effect using checkerboard pattern
+	// Darken the entire viewport area (320x200 at screen coordinates)
+	byte *screen = screens[0];
+	int x, y;
+	for (y = 0; y < SCREENHEIGHT; y++)
+	{
+	    for (x = 0; x < SCREENWIDTH; x++)
+	    {
+		// Create checkerboard pattern: every other pixel is darkened
+		if ((x + y) & 1)
+		{
+		    screen[y * SCREENWIDTH + x] = (screen[y * SCREENWIDTH + x] >> 1) & 0x7F;
+		}
+	    }
+	}
+    }
+
     if (gamestate == GS_LEVEL && gametic)
 	HU_Drawer ();
     
