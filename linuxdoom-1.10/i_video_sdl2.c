@@ -34,8 +34,8 @@ static int ScreenHeight = SCREENHEIGHT;
 static int mouse_button_state = 0;
 extern boolean menuactive;
 
-int vid_window_width = 1280;  // 4:3 aspect ratio (1280x960) - 4x scale
-int vid_window_height = 960;
+int vid_window_width = 0;     // 0 = detect desktop resolution and scale appropriately
+int vid_window_height = 0;
 int vid_fullscreen = 0;
 int vid_aspect = 0;        // 0 = 4:3, 1 = 16:9, 2 = stretch
 int vid_integer_scale = 1;
@@ -196,11 +196,55 @@ void I_InitGraphics(void)
 
     if (vid_window_width <= 0 || vid_window_height <= 0)
     {
-        I_GetDesktopResolution(&vid_window_width, &vid_window_height);
-        if (vid_window_width <= 0)
-            vid_window_width = ScreenWidth * 2;
-        if (vid_window_height <= 0)
-            vid_window_height = ScreenHeight * 2;
+        int desktop_width = 0, desktop_height = 0;
+        I_GetDesktopResolution(&desktop_width, &desktop_height);
+
+        if (desktop_width > 0 && desktop_height > 0)
+        {
+            // For fullscreen, use native desktop resolution
+            if (vid_fullscreen)
+            {
+                vid_window_width = desktop_width;
+                vid_window_height = desktop_height;
+            }
+            else
+            {
+                // For windowed mode, use 75% of desktop resolution
+                int scaled_width = (desktop_width * 75) / 100;
+                int scaled_height = (desktop_height * 75) / 100;
+
+                // Apply aspect ratio constraint (320x240 for 4:3)
+                float base_width = (float)ScreenWidth;
+                float base_height = (vid_aspect == 1)
+                    ? (base_width * 9.0f / 16.0f)
+                    : ((float)ScreenHeight * 6.0f / 5.0f);
+                float scale = fminf(scaled_width / base_width, scaled_height / base_height);
+
+                // Use integer scaling if enabled
+                if (vid_integer_scale)
+                {
+                    int integer_scale = (int)scale;
+                    if (integer_scale >= 1)
+                        scale = (float)integer_scale;
+                }
+
+                // Calculate final window size
+                vid_window_width = (int)lroundf(base_width * scale);
+                vid_window_height = (int)lroundf(base_height * scale);
+
+                // Ensure minimum size
+                if (vid_window_width < ScreenWidth)
+                    vid_window_width = ScreenWidth;
+                if (vid_window_height < ScreenHeight)
+                    vid_window_height = ScreenHeight;
+            }
+        }
+        else
+        {
+            // Fallback if desktop detection fails
+            vid_window_width = ScreenWidth * 4;
+            vid_window_height = ScreenHeight * 4;
+        }
     }
 
     Uint32 window_flags = SDL_WINDOW_RESIZABLE;
