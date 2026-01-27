@@ -1,7 +1,7 @@
 # Modernization Completion Checklist
 
-**Last Updated:** January 13, 2026  
-**Current Branch:** copilot/update-todo-status-and-status-file  
+**Last Updated:** January 27, 2026
+**Current Branch:** master
 **Status Document:** See STATUS.md for detailed progress tracking
 
 The following tasks must be completed before the SDL2-focused adaptation is considered "done." They build on the initial video, CMake, and networking work already started.
@@ -11,13 +11,13 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 ## Build and platform hygiene
 - ✅ **DONE:** Collapse duplicate build targets in the root `CMakeLists.txt` and rely on one `add_executable` definition. Ensure options like `NETWORK_BACKEND` and `DOOM_USE_SDL2` are consistent and documented.
 - ✅ **DONE:** Keep `linuxdoom-1.10/CMakeLists.txt` centered on one `DOOM_SOURCES` list and the selected backends: SDL2 video, SDL_net when present, or legacy BSD sockets when explicitly chosen. Continue exercising both `NETWORK_BACKEND` variants and document the backend-dependent compile flags in `BUILDING.md`.
-- Remove unconditional X11 and legacy SDL1 dependencies from the build graph; verify that configuring with SDL2 video and `-DNETWORK_BACKEND=SDL_NET` succeeds without X11 headers.
+- ✅ **DONE:** Remove unconditional X11 and legacy SDL1 dependencies from the build graph. Build with SDL2 video and `-DNETWORK_BACKEND=SDL_NET` succeeds without X11 headers.
 - Add sensible feature toggles for optional components (e.g., MIDI, IPv6) and document them in `BUILDING.md`.
 
 ## Video and input
-- ⚠️ **PARTIAL:** Finalize the SDL2-only video path: retire `i_video_x11.c`/`i_video_sdl.c`, keep `i_video_sdl2.c`, and purge X11/SDL1 conditionals from `v_video.c`, `i_video.h`, `g_game.c`, and HUD modules (`st_*`, `hu_*`). (SDL2 backend exists and is functional; legacy backends still present but deprecated)
+- ✅ **DONE:** Finalize the SDL2-only video path: retire `i_video_x11.c`/`i_video_sdl.c`, keep `i_video_sdl2.c`, and ensure no X11/SDL1 conditionals remain. (Legacy backends removed from repository; SDL2 is now the only video implementation)
 - Handle SDL2 window events (resize/fullscreen/focus) by recreating textures as needed and preserving aspect ratio via logical sizing or letterboxing instead of stretching to the current window size.
-- Ensure window resizing, fullscreen toggles, and input focus changes are handled uniformly via SDL2 events; audit mouse/keyboard code for parity with the legacy backends.
+- Ensure window resizing, fullscreen toggles, and input focus changes are handled uniformly via SDL2 events; audit mouse/keyboard code for completeness.
 
 ## Networking
 - ⚠️ **PARTIAL:** Legacy BSD networking now builds without SDL_net; choose a single maintained backend—SDL_net (default via `i_net.c`) or BSD sockets (legacy path guarded by `DOOM_USE_LEGACY_NETWORKING`)—and remove the unused code path from `CMakeLists.txt`. (Both backends exist; consolidation pending)

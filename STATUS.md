@@ -1,8 +1,8 @@
 # DOOM Modernization Project - Current Status
 
-**Last Updated:** January 13, 2026  
-**Repository:** 0n1cOn3/DOOM  
-**Branch:** copilot/update-todo-status-and-status-file
+**Last Updated:** January 27, 2026
+**Repository:** 0n1cOn3/-WIP-DOOM
+**Branch:** master
 
 ## Executive Summary
 
@@ -20,7 +20,7 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 ### Video Backend
 - ✅ **SDL2 Video Backend Created**: `i_video_sdl2.c` exists and is functional
 - ✅ **Backend Selection Logic**: CMake selects SDL2 backend by default
-- ⚠️ **Legacy Backends Present**: X11 (`i_video_x11.c`) and SDL1 (`i_video_sdl.c`) still in tree but deprecated
+- ✅ **Legacy Backends Removed**: X11 (`i_video_x11.c`) and SDL1 (`i_video_sdl.c`) deleted from repository
 
 ### Networking
 - ✅ **SDL_net Integration**: Default networking through `i_net.c` with SDL_net
@@ -37,13 +37,13 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 ## What Is In Progress / Partially Complete ⚠️
 
 ### Video System
-- ⚠️ **Legacy Code Removal**: X11 and SDL1 video code still exists in repository
-- ⚠️ **Conditional Compilation**: X11/SDL1 conditionals remain in `v_video.c`, `i_video.h`, and game code
+- ✅ **Legacy Code Removal**: X11 and SDL1 video code removed from repository
+- ✅ **Conditional Compilation**: No X11/SDL1 conditionals remain in codebase
 - ⚠️ **Window Event Handling**: SDL2 resize/fullscreen/focus events need proper handling
 - ⚠️ **Aspect Ratio**: Resolution-independent rendering and aspect ratio preservation incomplete
 
 ### Build Configuration
-- ⚠️ **X11 Dependencies**: Build may still have unconditional X11 dependency checks
+- ✅ **X11 Dependencies**: Removed from build; only SDL2 is linked
 - ⚠️ **Feature Toggles**: Optional components (MIDI, IPv6) lack clear toggles
 - ⚠️ **Documentation**: Backend expectations for packagers not fully documented
 
@@ -57,11 +57,11 @@ This repository contains the legacy Linux Doom sources undergoing modernization 
 ### High Priority
 
 #### 1. Finalize SDL2-Only Video Path
-- 🔲 Remove `i_video_x11.c` and `i_video_sdl.c` from repository
-- 🔲 Purge X11/SDL1 conditionals from `v_video.c`, `i_video.h`
-- 🔲 Clean up HUD modules (`st_*.c`, `hu_*.c`) to remove legacy paths
-- 🔲 Update `g_game.c` input handling for SDL2 only
-- 🔲 Verify CMake no longer requires X11 headers
+- ✅ Remove `i_video_x11.c` and `i_video_sdl.c` from repository
+- ✅ Purge X11/SDL1 conditionals from `v_video.c`, `i_video.h`
+- ✅ No legacy conditionals found in HUD modules (`st_*.c`, `hu_*.c`)
+- ✅ No legacy conditionals in `g_game.c` input handling
+- ✅ Verify CMake no longer requires X11 headers
 
 #### 2. Audio Modernization
 - 🔲 Refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively
@@ -186,15 +186,20 @@ cmake --build build-bsd
 
 ## Recommended Next Steps
 
-### Immediate (Next PR)
-1. **Remove Legacy Video Backends**: Delete `i_video_x11.c` and `i_video_sdl.c`
-2. **Clean Build Dependencies**: Remove X11 from CMake requirements
-3. **Update Video Code**: Remove X11/SDL1 conditionals from `v_video.c` and headers
+### Completed ✅
+1. **Remove Legacy Video Backends**: Deleted `i_video_x11.c` and `i_video_sdl.c`
+2. **Clean Build Dependencies**: Removed X11 from CMake requirements
+3. **Update Video Code**: No X11/SDL1 conditionals in codebase
 
-### Short Term (Following PRs)
+### Immediate (Next PR)
 4. **Audio Migration**: Refactor `i_sound.c` for SDL2 audio only
 5. **Resolution Support**: Implement proper aspect ratio handling
 6. **Window Events**: Add SDL2 resize/fullscreen event handling
+
+### Short Term (Following PRs)
+7. **Networking Consolidation**: Choose and document primary backend
+8. **Documentation**: Update all docs for SDL2-only approach
+9. **Testing**: Verify save/load and demo playback
 
 ### Medium Term
 7. **Networking Consolidation**: Choose and document primary backend
