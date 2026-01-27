@@ -200,6 +200,55 @@ perf report
 
 ---
 
+## Memory Corruption Investigation Summary (January 27, 2026)
+
+### Progress Made
+
+**Debugging Infrastructure Added:**
+- Comprehensive Z_Free logging with corrupted block details
+- Allocation tracking log showing recent 20 allocations before crash
+- Lump loading diagnostics with sequence tracing
+- W_ReadLump file I/O logging
+- P_LoadThings and P_SetupLevel instrumentation
+
+**Key Findings:**
+1. Crash occurs during Z_Malloc for THINGS lump, NOT in THINGS data processing
+2. Zone memory allocator state is already corrupted before THINGS allocation
+3. One of the map data lumps being parsed writes past buffer boundaries
+4. Corrupted block signature shows ZONEID header overwritten with memory pointers
+
+**Defensive Bounds Checks Added:**
+- P_LoadLineDefs: vertex index validation (prevents out-of-bounds vertexes[] access)
+- P_LoadSideDefs: sector index validation (prevents out-of-bounds sectors[] access)
+- W_CacheLumpName: lump name length validation
+- W_ReadLump: lump size sanity check (<100MB)
+- R_InitTextures: patch count and texture count bounds checking
+
+**Remaining Suspects:**
+- P_LoadSegs: Multiple complex index accesses (segs->linedef->sidenum[side]->sector)
+- P_GroupLines: Complex linked list manipulation
+- R_PrecacheLevel: Graphics precaching with complex lookups
+- Sprite/patch loading during R_InitSprites (called before level load)
+
+### Recommended Next Steps
+
+**If ASAN library becomes available:**
+```bash
+sudo dnf install libasan-devel  # or similar for your distro
+cmake -S . -B build -DCMAKE_C_FLAGS="-fsanitize=address -g -O1"
+cmake --build build
+./run-linuxdoom.sh /path/to/DOOM.WAD 2>&1 | head -200
+```
+This will pinpoint exact location of buffer overflow
+
+**Alternative Approaches:**
+1. Add detailed allocation logging to P_GroupLines and P_LoadNodes
+2. Instrument P_SpawnMapThing to log each thing spawn
+3. Test with a known-good PWAD to see if crash is WAD-specific
+4. Check if specific map (E1M1) always crashes or only sometimes
+
+---
+
 ## Future Enhancements
 
 1. **Map Selection UI**
