@@ -40,6 +40,38 @@ int vid_fullscreen = 0;
 int vid_aspect = 0;        // 0 = 4:3, 1 = 16:9, 2 = stretch
 int vid_integer_scale = 1;
 
+static void I_UpdateRendererLogicalSize(void)
+{
+    if (!renderer)
+        return;
+
+    // Stretch mode: disable logical sizing so the texture fills the window.
+    if (vid_aspect == 2)
+    {
+        SDL_RenderSetLogicalSize(renderer, 0, 0);
+        SDL_RenderSetIntegerScale(renderer, SDL_FALSE);
+        return;
+    }
+
+    // 4:3 mode applies a 1.2x vertical stretch (320x200 -> 320x240) to emulate
+    // DOOM's original pixel aspect. 16:9 uses a 320x180 logical space.
+    {
+        int logical_w = ScreenWidth;
+        int logical_h = ScreenHeight;
+
+        if (vid_aspect == 1)
+            logical_h = (int)lroundf((float)ScreenWidth * 9.0f / 16.0f);
+        else
+            logical_h = (int)lroundf((float)ScreenHeight * 6.0f / 5.0f);
+
+        if (logical_h <= 0)
+            logical_h = ScreenHeight;
+
+        SDL_RenderSetLogicalSize(renderer, logical_w, logical_h);
+        SDL_RenderSetIntegerScale(renderer, vid_integer_scale ? SDL_TRUE : SDL_FALSE);
+    }
+}
+
 void I_GetDesktopResolution(int *width, int *height)
 {
     SDL_DisplayMode mode;
@@ -272,12 +304,8 @@ void I_InitGraphics(void)
         I_Error("SDL renderer creation failed: %s", SDL_GetError());
     }
 
-    // Set logical rendering size.
-    // Keep the game at its native 320x200 logical coordinate system for
-    // all modes; SDL will letterbox/pillarbox as needed to preserve aspect.
-    // - Standard and widescreen both use 320x200 logical space (pillarbox for 16:9).
-    // - Stretch mode uses the same logical size but will fill the window via scaling.
-    SDL_RenderSetLogicalSize(renderer, ScreenWidth, ScreenHeight);
+    // Set logical rendering size (handles aspect + integer scaling).
+    I_UpdateRendererLogicalSize();
 
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ScreenWidth, ScreenHeight);
     if (!texture)
@@ -312,9 +340,23 @@ void I_ApplyVideoSettings(void)
         SDL_SetWindowFullscreen(window, 0);
 
     if (!vid_fullscreen && vid_window_width > 0 && vid_window_height > 0)
-        SDL_SetWindowSize(window, vid_window_width, vid_window_height);
+    {
+        // Clamp windowed sizes so the window doesn't spill off-screen due to
+        // decorations / unusable areas.
+        SDL_Rect usable;
+        int w = vid_window_width;
+        int h = vid_window_height;
+
+        if (SDL_GetDisplayUsableBounds(0, &usable) == 0)
+        {
+            if (w > usable.w) w = usable.w;
+            if (h > usable.h) h = usable.h;
+        }
+        SDL_SetWindowSize(window, w, h);
+    }
 
     SDL_GetWindowSize(window, &vid_window_width, &vid_window_height);
+    I_UpdateRendererLogicalSize();
 }
 
 void I_UpdateNoBlit(void)
@@ -392,6 +434,7 @@ void I_StartTic(void)
                             vid_window_width = event.window.data1;
                             vid_window_height = event.window.data2;
                         }
+                        I_UpdateRendererLogicalSize();
                         break;
                     // Note: SDL_WINDOWEVENT_SIZE_CHANGED not needed because
                     // SDL_RenderSetLogicalSize handles resize automatically

@@ -741,7 +741,8 @@ void I_InitNetworkAsync(int is_host, int player_count)
     ComputeContentHash(content_hash);
 
     net_init_is_host = is_host ? 1 : 0;
-    net_init_total_players = net_init_is_host ? ClampInt(player_count, 2, MAXNETNODES) : 0;
+    // DOOM netplay is limited to MAXPLAYERS (typically 4).
+    net_init_total_players = net_init_is_host ? ClampInt(player_count, 2, MAXPLAYERS) : 0;
     net_init_have_clients = 0;
     net_init_reject_reason = 0;
     net_init_content_mismatch = 0;
@@ -1137,7 +1138,8 @@ void I_InitNetwork (void)
     p = M_CheckParm("-host");
     if (p && p < myargc-1)
     {
-        desired_players = ParsePositiveIntArg(myargv[p+1], MAXNETNODES, 2);
+        // DOOM netplay is limited to MAXPLAYERS (typically 4).
+        desired_players = ParsePositiveIntArg(myargv[p+1], MAXPLAYERS, 2);
         use_host_flow = true;
     }
     p = M_CheckParm("-connect");

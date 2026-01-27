@@ -288,16 +288,36 @@ void D_Display (void)
     }
 
     // see if the border needs to be updated to the screen
-    if (gamestate == GS_LEVEL && !automapactive && scaledviewwidth != 320)
+    if (gamestate == GS_LEVEL && !automapactive)
     {
+	// Detect menu state transition and trigger viewport refresh
 	if (menuactive || menuactivestate || !viewactivestate)
 	    borderdrawcount = 3;
-	if (borderdrawcount)
-	{
-	    R_DrawViewBorder ();    // erase old menu stuff
-	    borderdrawcount--;
-	}
 
+	if (scaledviewwidth != 320)
+	{
+	    // Bordered viewport - redraw border to clear menu artifacts
+	    if (borderdrawcount)
+	    {
+		R_DrawViewBorder ();    // erase old menu stuff
+		borderdrawcount--;
+	    }
+	}
+	else
+	{
+	    // Fullscreen mode - clear the entire screen when exiting menu
+	    // This ensures menu pixels don't persist in the buffer
+	    if (borderdrawcount && !menuactive)
+	    {
+		// Fill screen with background color to clear menu artifacts
+		memset(screens[0], 0, SCREENWIDTH * SCREENHEIGHT);
+		borderdrawcount--;
+	    }
+	    else if (borderdrawcount)
+	    {
+		borderdrawcount--;
+	    }
+	}
     }
 
     menuactivestate = menuactive;
