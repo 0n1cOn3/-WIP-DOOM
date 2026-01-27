@@ -272,7 +272,10 @@ void I_InitGraphics(void)
         I_Error("SDL renderer creation failed: %s", SDL_GetError());
     }
 
-    // Rendering uses an explicit destination rectangle to preserve 4:3 aspect.
+    // Set logical rendering size to 320x200 - SDL2 will automatically scale this to fill
+    // the window while maintaining aspect ratio. This is much simpler and more efficient
+    // than manual destination rectangle calculation.
+    SDL_RenderSetLogicalSize(renderer, ScreenWidth, ScreenHeight);
 
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ScreenWidth, ScreenHeight);
     if (!texture)
@@ -335,9 +338,8 @@ void I_FinishUpdate(void)
 
     SDL_UpdateTexture(texture, NULL, video_buffer, ScreenWidth * (int)sizeof(uint32_t));
     SDL_RenderClear(renderer);
-    SDL_Rect dest;
-    I_GetRenderDestRect(&dest);
-    SDL_RenderCopy(renderer, texture, NULL, &dest);
+    // SDL_RenderSetLogicalSize automatically scales to fill window while maintaining aspect ratio
+    SDL_RenderCopy(renderer, texture, NULL, NULL);
     SDL_RenderPresent(renderer);
 }
 
