@@ -605,6 +605,8 @@ void P_GroupLines (void)
     for (i=0 ; i<numlines ; i++, li++)
     {
 	total++;
+	if (!li->frontsector)
+	    I_Error("P_GroupLines: line %d has NULL frontsector", i);
 	li->frontsector->linecount++;
 
 	if (li->backsector && li->backsector != li->frontsector)
@@ -614,8 +616,9 @@ void P_GroupLines (void)
 	}
     }
 	
-    // build line tables for each sector	
-    linebuffer = Z_Malloc (total*4, PU_LEVEL, 0);
+    // build line tables for each sector
+    // Each element is a line_t pointer (8 bytes on 64-bit), not 4!
+    linebuffer = Z_Malloc (total*sizeof(line_t*), PU_LEVEL, 0);
     sector = sectors;
     for (i=0 ; i<numsectors ; i++, sector++)
     {
@@ -627,6 +630,8 @@ void P_GroupLines (void)
 	    if (li->frontsector == sector || li->backsector == sector)
 	    {
 		*linebuffer++ = li;
+		if (!li->v1 || !li->v2)
+		    I_Error("P_GroupLines: line %d has NULL v1 or v2", j);
 		M_AddToBox (bbox, li->v1->x, li->v1->y);
 		M_AddToBox (bbox, li->v2->x, li->v2->y);
 	    }
