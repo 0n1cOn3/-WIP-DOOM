@@ -241,11 +241,45 @@ cmake --build build
 ```
 This will pinpoint exact location of buffer overflow
 
-**Alternative Approaches:**
-1. Add detailed allocation logging to P_GroupLines and P_LoadNodes
-2. Instrument P_SpawnMapThing to log each thing spawn
-3. Test with a known-good PWAD to see if crash is WAD-specific
-4. Check if specific map (E1M1) always crashes or only sometimes
+**Resolution Status (January 27, 2026 - ASAN Debugging Complete):**
+
+CRITICAL BUG FOUND AND FIXED:
+==========================
+**1-byte buffer overflow in IdentifyVersion() - d_main.c:681**
+
+```c
+// BEFORE (incorrect):
+doomuwad = malloc(strlen(doomwaddir)+1+8+1);   // Only 8 bytes for "doomu.wad"
+sprintf(doomuwad, "%s/doomu.wad", doomwaddir);  // Writes 9 chars + null = 10 bytes
+
+// AFTER (correct):
+doomuwad = malloc(strlen(doomwaddir)+1+9+1);   // Correct: 9 bytes for "doomu.wad"
+sprintf(doomuwad, "%s/doomu.wad", doomwaddir);
+```
+
+**ASAN Detection:**
+```
+ERROR: AddressSanitizer: heap-buffer-overflow
+WRITE of size 30 at 0x7bb3263e011d
+0x7bb3263e011d is located 0 bytes after 29-byte region [0x7bb3263e0100,0x7bb3263e011d)
+allocated by thread T0 at d_main.c:681 in IdentifyVersion
+```
+
+This overflow corrupted the zone memory allocator heap metadata, causing
+the Z_Free "freed a pointer without ZONEID" crashes when loading levels.
+
+**Remaining Issue:**
+Despite fixing the sprintf overflow, Z_Malloc still crashes with SEGV
+when allocating THINGS lump. This suggests either:
+1. Another earlier buffer overflow is still corrupting heap metadata
+2. The zone memory block list gets corrupted during initialization
+3. Multiple overlapping corruption patterns from different sources
+
+**Recommended Next Steps:**
+- Build with full ASAN (no -O1 flag) for complete instrumentation
+- Enable ASAN_OPTIONS="halt_on_error=1" to stop at first error
+- Audit all sprintf/strcpy calls for similar off-by-one errors
+- Check other WAD path allocations (they all have similar pattern)
 
 ---
 
