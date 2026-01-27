@@ -85,9 +85,6 @@ int			showMessages;
 int			detailLevel;		
 int			screenblocks;		// has default
 
-// temp for screenblocks (0-9)
-int			screenSize;		
-
 // -1 = no quicksave slot picked!
 int			quickSaveSlot;          
 
@@ -199,13 +196,10 @@ void M_SfxVol(int choice);
 void M_MusicVol(int choice);
 void M_MusicBackend(int choice);
 void M_ChangeDetail(int choice);
-void M_SizeDisplay(int choice);
 void M_StartGame(int choice);
 void M_Sound(int choice);
-void M_Modern(int choice);
-void M_ModernBack(int choice);
-void M_ModernDisplay(int choice);
-void M_ModernNetwork(int choice);
+void M_OpenDisplay(int choice);
+void M_OpenNetwork(int choice);
 void M_DisplayAspect(int choice);
 void M_DisplayScale(int choice);
 void M_DisplayResolution(int choice);
@@ -227,7 +221,6 @@ void M_DrawNewGame(void);
 void M_DrawEpisode(void);
 void M_DrawOptions(void);
 void M_DrawSound(void);
-void M_DrawModern(void);
 void M_DrawDisplay(void);
 void M_DrawNetwork(void);
 void M_DrawLoad(void);
@@ -360,13 +353,12 @@ enum
     endgame,
     messages,
     detail,
-    scrnsize,
-    option_empty1,
     mousesens,
-    option_empty2,
+    option_empty1,
     soundvol,
-    option_empty3,
-    modernopt,
+    option_empty2,
+    displayopt,
+    networkopt,
     opt_end
 } options_e;
 
@@ -375,13 +367,12 @@ menuitem_t OptionsMenu[]=
     {1,"",		M_EndGame,'e'},
     {1,"",		M_ChangeMessages,'m'},
     {1,"",		M_ChangeDetail,'g'},
-    {2,"",		M_SizeDisplay,'s'},
-    {-1,"",0},
     {2,"",		M_ChangeSensitivity,'m'},
     {-1,"",0},
     {1,"",		M_Sound,'s'},
     {-1,"",0},
-    {1,"",		M_Modern,'m'}
+    {1,"",		M_OpenDisplay,'d'},
+    {1,"",		M_OpenNetwork,'n'}
 };
 
 menu_t  OptionsDef =
@@ -390,34 +381,6 @@ menu_t  OptionsDef =
     &MainDef,
     OptionsMenu,
     M_DrawOptions,
-    60,37,
-    0
-};
-
-//
-// MODERN SETTINGS MENU
-//
-enum
-{
-    modern_display,
-    modern_network,
-    modern_back,
-    modern_end
-} modern_e;
-
-menuitem_t ModernMenu[]=
-{
-    {1,"", M_ModernDisplay,'d'},
-    {1,"", M_ModernNetwork,'n'},
-    {1,"", M_ModernBack,'b'}
-};
-
-menu_t  ModernDef =
-{
-    modern_end,
-    &OptionsDef,
-    ModernMenu,
-    M_DrawModern,
     60,37,
     0
 };
@@ -441,13 +404,13 @@ menuitem_t DisplayMenu[]=
     {2,"", M_DisplayFullscreen,'f'},
     {2,"", M_DisplayAspect,'a'},
     {2,"", M_DisplayScale,'i'},
-    {1,"", M_Modern,'b'}
+    {1,"", M_Options,'b'}
 };
 
 menu_t DisplayDef =
 {
     display_end,
-    &ModernDef,
+    &OptionsDef,
     DisplayMenu,
     M_DrawDisplay,
     60,37,
@@ -469,13 +432,13 @@ menuitem_t NetworkMenu[]=
 {
     {2,"", M_NetLatency,'l'},
     {2,"", M_NetPacketLoss,'p'},
-    {1,"", M_Modern,'b'}
+    {1,"", M_Options,'b'}
 };
 
 menu_t NetworkDef =
 {
     network_end,
-    &ModernDef,
+    &OptionsDef,
     NetworkMenu,
     M_DrawNetwork,
     60,37,
@@ -916,10 +879,10 @@ void M_DrawSound(void)
     V_DrawPatchDirect (60,38,0,W_CacheLumpName("M_SVOL",PU_CACHE));
 
     M_DrawThermo(SoundDef.x,SoundDef.y+LINEHEIGHT*(sfx_vol+1),
-		 16,snd_SfxVolume);
+		 15,snd_SfxVolume);
 
     M_DrawThermo(SoundDef.x,SoundDef.y+LINEHEIGHT*(music_vol+1),
-		 16,snd_MusicVolume);
+		 15,snd_MusicVolume);
 
     switch (music_backend)
     {
@@ -1109,26 +1072,11 @@ void M_DrawOptions(void)
 
     M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(mousesens+1),
 		 10,mouseSensitivity);
-	
-    M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(scrnsize+1),
-		 9,screenSize);
 
-    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*scrnsize, "SCREEN SIZE");
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*mousesens, "MOUSE SENS");
-    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*soundvol, "SOUND VOLUME");
-
-    M_WriteText(OptionsDef.x, OptionsDef.y+LINEHEIGHT*modernopt,
-		"MODERN SETTINGS");
-}
-
-void M_DrawModern(void)
-{
-    int title_x = 160 - M_StringWidth("MODERN SETTINGS")/2;
-
-    M_WriteText(title_x, 15, "MODERN SETTINGS");
-    M_WriteText(ModernDef.x, ModernDef.y + LINEHEIGHT*modern_display, "DISPLAY");
-    M_WriteText(ModernDef.x, ModernDef.y + LINEHEIGHT*modern_network, "NETWORK");
-    M_WriteText(ModernDef.x, ModernDef.y + LINEHEIGHT*modern_back, "BACK");
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*soundvol, "AUDIO SETTINGS");
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*displayopt, "DISPLAY SETTINGS");
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*networkopt, "NETWORK SETTINGS");
 }
 
 void M_DrawDisplay(void)
@@ -1136,11 +1084,18 @@ void M_DrawDisplay(void)
     char value[32];
     int value_x = DisplayDef.x + 140;
     int title_x = 160 - M_StringWidth("DISPLAY SETTINGS")/2;
+    int desktop_w = 0;
+    int desktop_h = 0;
+
+    I_GetDesktopResolution(&desktop_w, &desktop_h);
 
     M_WriteText(title_x, 15, "DISPLAY SETTINGS");
 
     M_WriteText(DisplayDef.x, DisplayDef.y + LINEHEIGHT*display_resolution, "RESOLUTION");
-    sprintf(value, "%dx%d", vid_window_width, vid_window_height);
+    if (vid_window_width == desktop_w && vid_window_height == desktop_h)
+        sprintf(value, "DESKTOP %dx%d", desktop_w, desktop_h);
+    else
+        sprintf(value, "%dx%d", vid_window_width, vid_window_height);
     M_WriteText(value_x, DisplayDef.y + LINEHEIGHT*display_resolution, value);
 
     M_WriteText(DisplayDef.x, DisplayDef.y + LINEHEIGHT*display_fullscreen, "FULLSCREEN");
@@ -1182,22 +1137,12 @@ void M_Options(int choice)
     M_SetupNextMenu(&OptionsDef);
 }
 
-void M_Modern(int choice)
-{
-    M_SetupNextMenu(&ModernDef);
-}
-
-void M_ModernBack(int choice)
-{
-    M_SetupNextMenu(&OptionsDef);
-}
-
-void M_ModernDisplay(int choice)
+void M_OpenDisplay(int choice)
 {
     M_SetupNextMenu(&DisplayDef);
 }
 
-void M_ModernNetwork(int choice)
+void M_OpenNetwork(int choice)
 {
     M_SetupNextMenu(&NetworkDef);
 }
@@ -1249,28 +1194,65 @@ static const char* GetAspectLabel(void)
     }
 }
 
+static int stored_windowed_width = 0;
+static int stored_windowed_height = 0;
+
 void M_DisplayResolution(int choice)
 {
     int count = (int)(sizeof(display_resolutions) / sizeof(display_resolutions[0]));
+    int desktop_w = 0;
+    int desktop_h = 0;
     int index = FindResolutionIndex(vid_window_width, vid_window_height);
+    int total = count + 1;
+    int current;
 
-    if (index < 0)
-	index = 4;
+    I_GetDesktopResolution(&desktop_w, &desktop_h);
+
+    if (vid_window_width == desktop_w && vid_window_height == desktop_h)
+        current = count;
+    else if (index >= 0)
+        current = index;
+    else
+        current = count;
 
     if (choice)
-	index = (index + 1) % count;
+	current = (current + 1) % total;
     else
-	index = (index + count - 1) % count;
+	current = (current + total - 1) % total;
 
-    vid_window_width = display_resolutions[index].width;
-    vid_window_height = display_resolutions[index].height;
+    if (current == count)
+    {
+        vid_window_width = desktop_w;
+        vid_window_height = desktop_h;
+    }
+    else
+    {
+        vid_window_width = display_resolutions[current].width;
+        vid_window_height = display_resolutions[current].height;
+    }
+
+    if (!vid_fullscreen)
+    {
+        stored_windowed_width = vid_window_width;
+        stored_windowed_height = vid_window_height;
+    }
     I_ApplyVideoSettings();
 }
 
 void M_DisplayFullscreen(int choice)
 {
     choice = 0;
+    if (!vid_fullscreen)
+    {
+        stored_windowed_width = vid_window_width;
+        stored_windowed_height = vid_window_height;
+    }
     vid_fullscreen = !vid_fullscreen;
+    if (!vid_fullscreen && stored_windowed_width > 0 && stored_windowed_height > 0)
+    {
+        vid_window_width = stored_windowed_width;
+        vid_window_height = stored_windowed_height;
+    }
     I_ApplyVideoSettings();
 }
 
@@ -1494,33 +1476,6 @@ void M_ChangeDetail(int choice)
 
 
 
-void M_SizeDisplay(int choice)
-{
-    switch(choice)
-    {
-      case 0:
-	if (screenSize > 0)
-	{
-	    screenblocks--;
-	    screenSize--;
-	}
-	break;
-      case 1:
-	if (screenSize < 8)
-	{
-	    screenblocks++;
-	    screenSize++;
-	}
-	break;
-    }
-	
-
-    R_SetViewSize (screenblocks, detailLevel);
-}
-
-
-
-
 //
 //      Menu Functions
 //
@@ -1533,6 +1488,11 @@ M_DrawThermo
 {
     int		xx;
     int		i;
+
+    if (thermDot < 0)
+	thermDot = 0;
+    if (thermDot > thermWidth)
+	thermDot = thermWidth;
 
     xx = x;
     V_DrawPatchDirect (xx,y,0,W_CacheLumpName("M_THERML",PU_CACHE));
@@ -1864,20 +1824,6 @@ boolean M_Responder (event_t* ev)
     if (!menuactive)
 	switch(ch)
 	{
-	  case KEY_MINUS:         // Screen size down
-	    if (automapactive || chat_on)
-		return false;
-	    M_SizeDisplay(0);
-	    S_StartSound(NULL,sfx_stnmov);
-	    return true;
-				
-	  case KEY_EQUALS:        // Screen size up
-	    if (automapactive || chat_on)
-		return false;
-	    M_SizeDisplay(1);
-	    S_StartSound(NULL,sfx_stnmov);
-	    return true;
-				
 	  case KEY_F1:            // Help key
 	    M_StartControlPanel ();
 
@@ -2196,7 +2142,6 @@ void M_Init (void)
     itemOn = currentMenu->lastOn;
     whichSkull = 0;
     skullAnimCounter = 10;
-    screenSize = screenblocks - 3;
     messageToPrint = 0;
     messageString = NULL;
     messageLastMenuActive = menuactive;

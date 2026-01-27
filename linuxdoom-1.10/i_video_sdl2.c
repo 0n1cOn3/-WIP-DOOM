@@ -18,6 +18,7 @@
 #include "d_main.h"
 #include "i_system.h"
 #include "i_video.h"
+#include "m_menu.h"
 #include "m_argv.h"
 #include "v_video.h"
 
@@ -31,12 +32,31 @@ static int ScreenWidth = SCREENWIDTH;
 static int ScreenHeight = SCREENHEIGHT;
 
 static int mouse_button_state = 0;
+extern boolean menuactive;
 
 int vid_window_width = 1280;
 int vid_window_height = 720;
 int vid_fullscreen = 0;
 int vid_aspect = 0;        // 0 = 4:3, 1 = 16:9, 2 = stretch
 int vid_integer_scale = 1;
+
+void I_GetDesktopResolution(int *width, int *height)
+{
+    SDL_DisplayMode mode;
+
+    if (width)
+        *width = ScreenWidth * 2;
+    if (height)
+        *height = ScreenHeight * 2;
+
+    if (SDL_GetCurrentDisplayMode(0, &mode) == 0 && mode.w > 0 && mode.h > 0)
+    {
+        if (width)
+            *width = mode.w;
+        if (height)
+            *height = mode.h;
+    }
+}
 
 static void I_GetRenderDestRect(SDL_Rect *dest)
 {
@@ -174,10 +194,14 @@ void I_InitGraphics(void)
         I_Error("SDL video init failed: %s", SDL_GetError());
     }
 
-    if (vid_window_width <= 0)
-        vid_window_width = ScreenWidth * 2;
-    if (vid_window_height <= 0)
-        vid_window_height = ScreenHeight * 2;
+    if (vid_window_width <= 0 || vid_window_height <= 0)
+    {
+        I_GetDesktopResolution(&vid_window_width, &vid_window_height);
+        if (vid_window_width <= 0)
+            vid_window_width = ScreenWidth * 2;
+        if (vid_window_height <= 0)
+            vid_window_height = ScreenHeight * 2;
+    }
 
     Uint32 window_flags = SDL_WINDOW_RESIZABLE;
     if (vid_fullscreen)
@@ -240,6 +264,8 @@ void I_ApplyVideoSettings(void)
 
     if (!vid_fullscreen && vid_window_width > 0 && vid_window_height > 0)
         SDL_SetWindowSize(window, vid_window_width, vid_window_height);
+
+    SDL_GetWindowSize(window, &vid_window_width, &vid_window_height);
 }
 
 void I_UpdateNoBlit(void)
@@ -312,6 +338,13 @@ void I_StartTic(void)
                     case SDL_WINDOWEVENT_FOCUS_GAINED:
                         // Window regained focus
                         break;
+                    case SDL_WINDOWEVENT_SIZE_CHANGED:
+                        if (!vid_fullscreen)
+                        {
+                            vid_window_width = event.window.data1;
+                            vid_window_height = event.window.data2;
+                        }
+                        break;
                     // Note: SDL_WINDOWEVENT_SIZE_CHANGED not needed because
                     // SDL_RenderSetLogicalSize handles resize automatically
                 }
@@ -343,6 +376,11 @@ void I_StartTic(void)
             }
             case SDL_MOUSEBUTTONDOWN:
             {
+                if (menuactive)
+                {
+                    mouse_button_state = 0;
+                    break;
+                }
                 event_t doom_event;
                 doom_event.type = ev_mouse;
                 
@@ -362,6 +400,11 @@ void I_StartTic(void)
             }
             case SDL_MOUSEBUTTONUP:
             {
+                if (menuactive)
+                {
+                    mouse_button_state = 0;
+                    break;
+                }
                 event_t doom_event;
                 doom_event.type = ev_mouse;
                 
@@ -381,6 +424,11 @@ void I_StartTic(void)
             }
             case SDL_MOUSEMOTION:
             {
+                if (menuactive)
+                {
+                    mouse_button_state = 0;
+                    break;
+                }
                 event_t doom_event;
                 doom_event.type = ev_mouse;
                 doom_event.data1 = mouse_button_state;

@@ -1587,7 +1587,11 @@ void G_DoPlayDemo (void)
     if ( *demo_p++ != VERSION)
     {
       fprintf( stderr, "Demo is from a different game version!\n");
+      Z_ChangeTag(demobuffer, PU_CACHE);
+      demobuffer = NULL;
+      demo_p = NULL;
       gameaction = ga_nothing;
+      D_AdvanceDemo();
       return;
     }
     

@@ -58,6 +58,9 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - Verify savegame and demo playback determinism after SDL2, networking, and audio changes; update any timing assumptions in `p_tick.c` and input aggregation code.
 - Add minimal regression checks (even manual scripts) to cover save/load and demo playback across common WADs.
 
+## Multiplayer
+- [ ] Multiplayer mode: allow any player to host a server and others to join (UI flow + matchmaking/host discovery + connection UX).
+
 ## Packaging, docs, and polish
 - ✅ **DONE:** Update `BUILDING.md` with SDL2-only setup steps, dependency lists, and configuration examples (audio config, network backend, build options).
 - ✅ **DONE:** Update `README.TXT` with SDL2-only capabilities and setup instructions (added comprehensive SDL2 MODERNIZATION section documenting video, audio, networking, and removed backends).

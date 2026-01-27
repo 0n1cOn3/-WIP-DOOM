@@ -198,6 +198,8 @@ Install `libasound2-dev` to enable ALSA sequencer output as a music fallback.
 ## Current Challenges
 
 1. **Automated Testing**: No regression test suite; manual testing required for save/load and demo playback
+2. **Demo Playback Compatibility**: Built-in demo lumps often target older versions and can spam warnings; demos are now disabled when incompatible, but versioning still needs verification across IWADs.
+3. **Audio Artifacts**: Crackling/pops and short audio dropouts occur when switching menus; backend mixing or buffer timing still needs investigation.
 
 2. **Advanced Graphics Features**: Future enhancements could include widescreen rendering support, HUD scaling for modern resolutions, optional aspect ratio modes (4:3, widescreen, stretched)
 

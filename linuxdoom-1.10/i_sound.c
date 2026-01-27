@@ -127,6 +127,9 @@ static int music_playing = 0;
 static int music_paused = 0;
 static int music_looping = 0;
 static int music_volume = 15;
+static int music_loaded = 0;
+static uint8_t *music_midi_data = NULL;
+static uint32_t music_midi_length = 0;
 
 #ifdef HAVE_ADLMIDI
 static struct ADL_MIDIPlayer *adl_player = NULL;
@@ -135,6 +138,9 @@ static struct ADL_MIDIPlayer *adl_player = NULL;
 #ifdef HAVE_OPNMIDI
 static struct OPN2_MIDIPlayer *opn_player = NULL;
 #endif
+
+extern int I_MusToMidi(const uint8_t *mus, uint32_t mus_len, uint8_t **out, uint32_t *out_len);
+extern void I_MusToMidiFree(uint8_t *data);
 
 #ifdef HAVE_ALSA_SEQ
 static snd_seq_t *alsa_seq = NULL;
@@ -146,9 +152,6 @@ static uint8_t *alsa_midi_data = NULL;
 static uint32_t alsa_midi_length = 0;
 static pthread_mutex_t alsa_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t alsa_cond = PTHREAD_COND_INITIALIZER;
-
-extern int I_MusToMidi(const uint8_t *mus, uint32_t mus_len, uint8_t **out, uint32_t *out_len);
-extern void I_MusToMidiFree(uint8_t *data);
 #endif
 
 static int ScaleSfxVolume(int volume)
@@ -216,6 +219,18 @@ static int MusicBackendSelect(int requested)
     }
 
     return -1;
+}
+
+static void LockAudioDevice(void)
+{
+    if (audio_device != 0)
+        SDL_LockAudioDevice(audio_device);
+}
+
+static void UnlockAudioDevice(void)
+{
+    if (audio_device != 0)
+        SDL_UnlockAudioDevice(audio_device);
 }
 
 //
@@ -349,6 +364,8 @@ I_StartSound
     int		i;
     int		rc = 0;
 
+    LockAudioDevice();
+
     // Relative mode, not pitch number.
     if (pitch == 128)
 	stepper = steptable[128];
@@ -361,6 +378,7 @@ I_StartSound
 	rc = channel;
     }
 
+    UnlockAudioDevice();
     return rc;
 }
 
@@ -371,6 +389,7 @@ I_StartSound
 void I_StopSound(int handle)
 {
     int i;
+    LockAudioDevice();
     for (i=0 ; i<NUM_CHANNELS ; i++)
     {
 	if (channelhandles[i] == handle)
@@ -378,6 +397,7 @@ void I_StopSound(int handle)
 	    channels[i] = 0;
 	}
     }
+    UnlockAudioDevice();
 }
 
 
@@ -389,14 +409,18 @@ void I_StopSound(int handle)
 int I_SoundIsPlaying(int handle)
 {
     int i;
+    int playing = 0;
+    LockAudioDevice();
     for (i=0 ; i<NUM_CHANNELS ; i++)
     {
 	if (channelhandles[i] == handle && channels[i])
 	{
-	    return 1;
+	    playing = 1;
+            break;
 	}
     }
-    return 0;
+    UnlockAudioDevice();
+    return playing;
 }
 
 
@@ -414,6 +438,7 @@ I_UpdateSoundParams
     int i;
     int	stepper;
 
+    LockAudioDevice();
     for ( i = 0; i < NUM_CHANNELS; i++ )
     {
 	if (channelhandles[i] == handle)
@@ -437,6 +462,7 @@ I_UpdateSoundParams
 	    channelstep[i] = stepper;
 	}
     }
+    UnlockAudioDevice();
 }
 
 
@@ -508,8 +534,9 @@ static void I_UpdateMusic(int len)
     int samples;
     int i;
     int volume;
+    int generated = 0;
 
-    if (!music_playing || music_paused)
+    if (!music_playing || music_paused || !music_loaded)
         return;
 
     if (music_backend_active == 2)
@@ -523,15 +550,22 @@ static void I_UpdateMusic(int len)
     if (samples > MIXBUFFERSIZE)
         samples = MIXBUFFERSIZE;
 
+    memset(musicbuffer, 0, sizeof(int16_t) * samples);
+
 #ifdef HAVE_ADLMIDI
     if (music_backend_active == 0 && adl_player)
-        adl_play(adl_player, frames, musicbuffer);
+        generated = adl_play(adl_player, samples, musicbuffer);
 #endif
 
 #ifdef HAVE_OPNMIDI
     if (music_backend_active == 1 && opn_player)
-        opn2_play(opn_player, frames, musicbuffer);
+        generated = opn2_play(opn_player, samples, musicbuffer);
 #endif
+
+    if (generated > 0 && generated < samples)
+    {
+        memset(musicbuffer + generated, 0, sizeof(int16_t) * (samples - generated));
+    }
 
     volume = music_volume;
     if (volume <= 0)
@@ -557,6 +591,15 @@ static void I_UpdateMusic(int len)
 //
 static void audio_callback(void *userdata, Uint8 *stream, int len)
 {
+    static int warned_len = 0;
+    int max_len = MIXBUFFERSIZE * (int)sizeof(int16_t);
+
+    if (!warned_len && len > max_len)
+    {
+        fprintf(stderr, "I_UpdateSound: callback len %d exceeds mix buffer %d\n", len, max_len);
+        warned_len = 1;
+    }
+
     // Update the mixing buffer
     I_UpdateSound();
     I_UpdateMusic(len);
@@ -589,6 +632,7 @@ void I_InitSound(void)
 {
     int i;
     int j;
+    SDL_AudioSpec obtained;
 
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0)
     {
@@ -633,11 +677,17 @@ void I_InitSound(void)
     audio_spec.callback = audio_callback;
     audio_spec.userdata = NULL;
 
-    audio_device = SDL_OpenAudioDevice(NULL, 0, &audio_spec, NULL, 0);
+    SDL_zero(obtained);
+    audio_device = SDL_OpenAudioDevice(NULL, 0, &audio_spec, &obtained, 0);
     if (audio_device == 0)
     {
         I_Error("Could not open audio device: %s", SDL_GetError());
     }
+
+    fprintf(stderr, "I_InitSound: desired %d Hz, %d ch, samples %d, fmt 0x%x\n",
+            audio_spec.freq, audio_spec.channels, audio_spec.samples, (unsigned)audio_spec.format);
+    fprintf(stderr, "I_InitSound: obtained %d Hz, %d ch, samples %d, fmt 0x%x\n",
+            obtained.freq, obtained.channels, obtained.samples, (unsigned)obtained.format);
 
     // Start playback
     SDL_PauseAudioDevice(audio_device, 0);
@@ -673,6 +723,7 @@ void I_SetChannels()
 {
     int i;
 
+    LockAudioDevice();
     for (i=0; i<NUM_CHANNELS; i++)
     {
 	channels[i] = 0;
@@ -680,6 +731,7 @@ void I_SetChannels()
 	channelstep[i] = 0;
 	channelstepremainder[i] = 0;
     }
+    UnlockAudioDevice();
 }
 
 
@@ -1039,9 +1091,13 @@ static void AlsaStopThread(void)
 //
 void I_InitMusic(void)
 {
+    LockAudioDevice();
     music_backend_active = MusicBackendSelect(music_backend);
     music_paused = 0;
     music_playing = 0;
+    music_loaded = 0;
+
+    fprintf(stderr, "I_InitMusic: requested backend %d\n", music_backend);
 
 #ifdef HAVE_ADLMIDI
     if (music_backend_active == 0)
@@ -1053,6 +1109,7 @@ void I_InitMusic(void)
             adl_setVolumeRangeModel(adl_player, ADLMIDI_VolumeModel_DMX);
             adl_setNumChips(adl_player, 2);
             fprintf(stderr, "I_InitMusic: ADLMIDI backend active\n");
+            UnlockAudioDevice();
             return;
         }
     }
@@ -1068,6 +1125,7 @@ void I_InitMusic(void)
             opn2_setVolumeRangeModel(opn_player, OPNMIDI_VolumeModel_DMX);
             opn2_setNumChips(opn_player, 2);
             fprintf(stderr, "I_InitMusic: OPNMIDI backend active\n");
+            UnlockAudioDevice();
             return;
         }
     }
@@ -1078,17 +1136,27 @@ void I_InitMusic(void)
     {
         AlsaStartThread();
         fprintf(stderr, "I_InitMusic: ALSA sequencer backend active\n");
+        UnlockAudioDevice();
         return;
     }
 #endif
 
     fprintf(stderr, "I_InitMusic: no music backend available\n");
+    UnlockAudioDevice();
 }
 
 void I_ShutdownMusic(void)
 {
+    LockAudioDevice();
     music_playing = 0;
     music_paused = 0;
+    music_loaded = 0;
+    if (music_midi_data)
+    {
+        I_MusToMidiFree(music_midi_data);
+        music_midi_data = NULL;
+        music_midi_length = 0;
+    }
 
 #ifdef HAVE_ALSA_SEQ
     AlsaStopThread();
@@ -1116,11 +1184,21 @@ void I_ShutdownMusic(void)
         opn_player = NULL;
     }
 #endif
+    UnlockAudioDevice();
 }
 
 void I_PlaySong(int handle, int looping)
 {
+    LockAudioDevice();
     (void)handle;
+    if (!music_loaded || handle == 0)
+    {
+        music_playing = 0;
+        music_paused = 0;
+        UnlockAudioDevice();
+        return;
+    }
+
     music_looping = looping;
     music_playing = 1;
     music_paused = 0;
@@ -1130,6 +1208,7 @@ void I_PlaySong(int handle, int looping)
     {
         adl_setLoopEnabled(adl_player, looping ? 1 : 0);
         adl_setLoopCount(adl_player, looping ? -1 : 0);
+        UnlockAudioDevice();
         return;
     }
 #endif
@@ -1139,6 +1218,7 @@ void I_PlaySong(int handle, int looping)
     {
         opn2_setLoopEnabled(opn_player, looping ? 1 : 0);
         opn2_setLoopCount(opn_player, looping ? -1 : 0);
+        UnlockAudioDevice();
         return;
     }
 #endif
@@ -1147,28 +1227,34 @@ void I_PlaySong(int handle, int looping)
     if (music_backend_active == 2)
         AlsaSignal();
 #endif
+    UnlockAudioDevice();
 }
 
 void I_PauseSong (int handle)
 {
+    LockAudioDevice();
     (void)handle;
     music_paused = 1;
 #ifdef HAVE_ALSA_SEQ
     AlsaSignal();
 #endif
+    UnlockAudioDevice();
 }
 
 void I_ResumeSong (int handle)
 {
+    LockAudioDevice();
     (void)handle;
     music_paused = 0;
 #ifdef HAVE_ALSA_SEQ
     AlsaSignal();
 #endif
+    UnlockAudioDevice();
 }
 
 void I_StopSong(int handle)
 {
+    LockAudioDevice();
     (void)handle;
     music_playing = 0;
     music_paused = 0;
@@ -1186,11 +1272,20 @@ void I_StopSong(int handle)
 #ifdef HAVE_ALSA_SEQ
     AlsaSignal();
 #endif
+    UnlockAudioDevice();
 }
 
 void I_UnRegisterSong(int handle)
 {
+    LockAudioDevice();
     (void)handle;
+    music_loaded = 0;
+    if (music_midi_data)
+    {
+        I_MusToMidiFree(music_midi_data);
+        music_midi_data = NULL;
+        music_midi_length = 0;
+    }
 
 #ifdef HAVE_ALSA_SEQ
     if (music_backend_active == 2 && alsa_midi_data)
@@ -1200,34 +1295,96 @@ void I_UnRegisterSong(int handle)
         alsa_midi_length = 0;
     }
 #endif
+    UnlockAudioDevice();
 }
 
 int I_RegisterSong(void* data, int length)
 {
+    LockAudioDevice();
     if (!data || length <= 0)
+    {
+        fprintf(stderr, "I_RegisterSong: invalid data (%p) length %d\n", data, length);
+        music_loaded = 0;
+        UnlockAudioDevice();
         return 0;
+    }
 
     music_playing = 0;
+    music_loaded = 0;
+    if (music_midi_data)
+    {
+        I_MusToMidiFree(music_midi_data);
+        music_midi_data = NULL;
+        music_midi_length = 0;
+    }
+
+    const uint8_t *song_data = (const uint8_t *)data;
+    uint32_t song_length = (uint32_t)length;
+    int is_mus = (length >= 4 && memcmp(song_data, "MUS\x1a", 4) == 0);
 
 #ifdef HAVE_ADLMIDI
     if (music_backend_active == 0 && adl_player)
     {
-        if (adl_openData(adl_player, data, (unsigned long)length) >= 0)
+        if (is_mus)
+        {
+            if (!I_MusToMidi(song_data, song_length, &music_midi_data, &music_midi_length))
+            {
+                fprintf(stderr, "I_RegisterSong: MUS->MIDI convert failed for %d bytes\n", length);
+            }
+            else
+            {
+                song_data = music_midi_data;
+                song_length = music_midi_length;
+                fprintf(stderr, "I_RegisterSong: MUS->MIDI %d -> %u bytes\n", length, music_midi_length);
+            }
+        }
+
+        if (adl_openData(adl_player, song_data, (unsigned long)song_length) >= 0)
         {
             adl_selectSongNum(adl_player, 0);
+            music_loaded = 1;
+            fprintf(stderr, "I_RegisterSong: ADLMIDI loaded %u bytes\n", song_length);
+            UnlockAudioDevice();
             return 1;
         }
+        fprintf(stderr, "I_RegisterSong: ADLMIDI failed to load %u bytes\n", song_length);
     }
 #endif
 
 #ifdef HAVE_OPNMIDI
     if (music_backend_active == 1 && opn_player)
     {
-        if (opn2_openData(opn_player, data, (unsigned long)length) >= 0)
+        if (is_mus)
+        {
+            if (!music_midi_data)
+            {
+                if (!I_MusToMidi(song_data, song_length, &music_midi_data, &music_midi_length))
+                {
+                    fprintf(stderr, "I_RegisterSong: MUS->MIDI convert failed for %d bytes\n", length);
+                }
+                else
+                {
+                    song_data = music_midi_data;
+                    song_length = music_midi_length;
+                    fprintf(stderr, "I_RegisterSong: MUS->MIDI %d -> %u bytes\n", length, music_midi_length);
+                }
+            }
+            else
+            {
+                song_data = music_midi_data;
+                song_length = music_midi_length;
+            }
+        }
+
+        if (opn2_openData(opn_player, song_data, (unsigned long)song_length) >= 0)
         {
             opn2_selectSongNum(opn_player, 0);
+            music_loaded = 1;
+            fprintf(stderr, "I_RegisterSong: OPNMIDI loaded %u bytes\n", song_length);
+            UnlockAudioDevice();
             return 1;
         }
+        fprintf(stderr, "I_RegisterSong: OPNMIDI failed to load %u bytes\n", song_length);
     }
 #endif
 
@@ -1242,10 +1399,18 @@ int I_RegisterSong(void* data, int length)
         }
 
         if (I_MusToMidi((const uint8_t *)data, (uint32_t)length, &alsa_midi_data, &alsa_midi_length))
+        {
+            music_loaded = 1;
+            fprintf(stderr, "I_RegisterSong: ALSA prepared %u bytes (from %d)\n",
+                    alsa_midi_length, length);
+            UnlockAudioDevice();
             return 1;
+        }
+        fprintf(stderr, "I_RegisterSong: ALSA convert failed for %d bytes\n", length);
     }
 #endif
 
+    UnlockAudioDevice();
     return 0;
 }
 
@@ -1257,12 +1422,14 @@ int I_QrySongPlaying(int handle)
 
 void I_SetMusicVolume(int volume)
 {
+    LockAudioDevice();
     if (volume < 0)
         volume = 0;
     if (volume <= 15)
         music_volume = (volume * 127) / 15;
     else
         music_volume = (volume > 127) ? 127 : volume;
+    UnlockAudioDevice();
 }
 
 //-----------------------------------------------------------------------------

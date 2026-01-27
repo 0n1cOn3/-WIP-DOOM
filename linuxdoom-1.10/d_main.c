@@ -417,6 +417,77 @@ void D_DoomLoop (void)
 int             demosequence;
 int             pagetic;
 char                    *pagename;
+static int     demos_enabled = 1;
+
+static void D_ShowTitleScreen(void)
+{
+    if ( gamemode == commercial )
+        pagetic = 35 * 11;
+    else
+        pagetic = 35 * 11;
+
+    gamestate = GS_DEMOSCREEN;
+    pagename = "TITLEPIC";
+    if ( gamemode == commercial )
+        S_StartMusic(mus_dm2ttl);
+    else
+        S_StartMusic (mus_intro);
+}
+
+static int D_CheckDemoVersion(const char *name, int *out_version)
+{
+    int lump = W_CheckNumForName((char *)name);
+    int len;
+    byte *demo;
+
+    if (lump < 0)
+        return 0;
+
+    len = W_LumpLength(lump);
+    if (len <= 0)
+        return 0;
+
+    demo = (byte *)W_CacheLumpNum(lump, PU_CACHE);
+    if (out_version)
+        *out_version = demo[0];
+    Z_ChangeTag(demo, PU_CACHE);
+    return 1;
+}
+
+static void D_CheckDemoSupport(void)
+{
+    const char *demos[] = {"DEMO1","DEMO2","DEMO3","DEMO4"};
+    int found = 0;
+    int compatible = 0;
+    int i;
+
+    if (M_CheckParm("-playdemo") || M_CheckParm("-timedemo"))
+        return;
+
+    for (i = 0; i < 4; i++)
+    {
+        int demo_version = 0;
+        if (D_CheckDemoVersion(demos[i], &demo_version))
+        {
+            found++;
+            if (demo_version == VERSION)
+                compatible = 1;
+            else
+                fprintf(stderr, "Warning: %s version %d != %d\n", demos[i], demo_version, VERSION);
+        }
+    }
+
+    if (!found)
+    {
+        demos_enabled = 0;
+        fprintf(stderr, "Warning: no demo lumps found in WADs; demo playback disabled.\n");
+    }
+    else if (!compatible)
+    {
+        demos_enabled = 0;
+        fprintf(stderr, "Warning: no compatible demos for version %d; demo playback disabled.\n", VERSION);
+    }
+}
 
 
 //
@@ -426,7 +497,14 @@ char                    *pagename;
 void D_PageTicker (void)
 {
     if (--pagetic < 0)
+    {
+        if (!demos_enabled)
+        {
+            pagetic = 35 * 60 * 60;
+            return;
+        }
 	D_AdvanceDemo ();
+    }
 }
 
 
@@ -446,6 +524,8 @@ void D_PageDrawer (void)
 //
 void D_AdvanceDemo (void)
 {
+    if (!demos_enabled)
+        return;
     advancedemo = true;
 }
 
@@ -461,6 +541,12 @@ void D_AdvanceDemo (void)
     usergame = false;               // no save / end game here
     paused = false;
     gameaction = ga_nothing;
+
+    if (!demos_enabled)
+    {
+        D_ShowTitleScreen();
+        return;
+    }
 
     if ( gamemode == retail )
       demosequence = (demosequence+1)%7;
@@ -529,6 +615,11 @@ void D_StartTitle (void)
 {
     gameaction = ga_nothing;
     demosequence = -1;
+    if (!demos_enabled)
+    {
+        D_ShowTitleScreen();
+        return;
+    }
     D_AdvanceDemo ();
 }
 
@@ -1037,6 +1128,7 @@ void D_DoomMain (void)
 
     printf ("W_Init: Init WADfiles.\n");
     W_InitMultipleFiles (wadfiles);
+    D_CheckDemoSupport();
     
 
     // Check for -file in shareware

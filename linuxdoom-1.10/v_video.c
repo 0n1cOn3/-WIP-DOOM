@@ -219,37 +219,59 @@ V_DrawPatch
     y -= SHORT(patch->topoffset); 
     x -= SHORT(patch->leftoffset); 
 #ifdef RANGECHECK 
-    if (x<0
-	||x+SHORT(patch->width) >SCREENWIDTH
-	|| y<0
-	|| y+SHORT(patch->height)>SCREENHEIGHT 
-	|| (unsigned)scrn>4)
-    {
-      fprintf( stderr, "Patch at %d,%d exceeds LFB\n", x,y );
-      // No I_Error abort - what is up with TNT.WAD?
-      fprintf( stderr, "V_DrawPatch: bad patch (ignored)\n");
-      return;
-    }
+    if ((unsigned)scrn>4)
+	I_Error ("Bad V_DrawPatch");
 #endif 
  
     if (!scrn)
 	V_MarkRect (x, y, SHORT(patch->width), SHORT(patch->height)); 
 
     col = 0; 
-    desttop = screens[scrn]+y*SCREENWIDTH+x; 
-	 
+    desttop = screens[scrn]+x; 
+ 
     w = SHORT(patch->width); 
 
     for ( ; col<w ; x++, col++, desttop++)
     { 
+	if (x < 0 || x >= SCREENWIDTH)
+	    continue;
 	column = (column_t *)((byte *)patch + LONG(patch->columnofs[col])); 
  
 	// step through the posts in a column 
 	while (column->topdelta != 0xff ) 
 	{ 
+	    int		start;
+	    int		skip;
+
 	    source = (byte *)column + 3; 
-	    dest = desttop + column->topdelta*SCREENWIDTH; 
+	    start = y + column->topdelta;
 	    count = column->length; 
+
+	    if (start < 0)
+	    {
+		skip = -start;
+		if (skip >= count)
+		{
+		    column = (column_t *)(  (byte *)column + column->length 
+					    + 4 ); 
+		    continue;
+		}
+		source += skip;
+		count -= skip;
+		start = 0;
+	    }
+
+	    if (start >= SCREENHEIGHT)
+	    {
+		column = (column_t *)(  (byte *)column + column->length 
+					+ 4 ); 
+		continue;
+	    }
+
+	    if (start + count > SCREENHEIGHT)
+		count = SCREENHEIGHT - start;
+
+	    dest = desttop + start*SCREENWIDTH; 
 			 
 	    while (count--) 
 	    { 
@@ -286,35 +308,59 @@ V_DrawPatchFlipped
     y -= SHORT(patch->topoffset); 
     x -= SHORT(patch->leftoffset); 
 #ifdef RANGECHECK 
-    if (x<0
-	||x+SHORT(patch->width) >SCREENWIDTH
-	|| y<0
-	|| y+SHORT(patch->height)>SCREENHEIGHT 
-	|| (unsigned)scrn>4)
-    {
-      fprintf( stderr, "Patch origin %d,%d exceeds LFB\n", x,y );
-      I_Error ("Bad V_DrawPatch in V_DrawPatchFlipped");
-    }
+    if ((unsigned)scrn>4)
+	I_Error ("Bad V_DrawPatch in V_DrawPatchFlipped");
 #endif 
  
     if (!scrn)
 	V_MarkRect (x, y, SHORT(patch->width), SHORT(patch->height)); 
 
     col = 0; 
-    desttop = screens[scrn]+y*SCREENWIDTH+x; 
-	 
+    desttop = screens[scrn]+x; 
+ 
     w = SHORT(patch->width); 
 
     for ( ; col<w ; x++, col++, desttop++) 
     { 
+	if (x < 0 || x >= SCREENWIDTH)
+	    continue;
 	column = (column_t *)((byte *)patch + LONG(patch->columnofs[w-1-col])); 
  
 	// step through the posts in a column 
 	while (column->topdelta != 0xff ) 
 	{ 
+	    int		start;
+	    int		skip;
+
 	    source = (byte *)column + 3; 
-	    dest = desttop + column->topdelta*SCREENWIDTH; 
+	    start = y + column->topdelta;
 	    count = column->length; 
+
+	    if (start < 0)
+	    {
+		skip = -start;
+		if (skip >= count)
+		{
+		    column = (column_t *)(  (byte *)column + column->length 
+					    + 4 ); 
+		    continue;
+		}
+		source += skip;
+		count -= skip;
+		start = 0;
+	    }
+
+	    if (start >= SCREENHEIGHT)
+	    {
+		column = (column_t *)(  (byte *)column + column->length 
+					+ 4 ); 
+		continue;
+	    }
+
+	    if (start + count > SCREENHEIGHT)
+		count = SCREENHEIGHT - start;
+
+	    dest = desttop + start*SCREENWIDTH; 
 			 
 	    while (count--) 
 	    { 

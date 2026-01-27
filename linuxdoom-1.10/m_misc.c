@@ -289,8 +289,8 @@ default_t       defaults[] =
 
     {"snd_channels",&numChannels, DEFAULT_INT, 3, NULL, 0, 0},
 
-    {"vid_window_width",&vid_window_width, DEFAULT_INT, 1280, NULL, 0, 0},
-    {"vid_window_height",&vid_window_height, DEFAULT_INT, 720, NULL, 0, 0},
+    {"vid_window_width",&vid_window_width, DEFAULT_INT, 0, NULL, 0, 0},
+    {"vid_window_height",&vid_window_height, DEFAULT_INT, 0, NULL, 0, 0},
     {"vid_fullscreen",&vid_fullscreen, DEFAULT_INT, 0, NULL, 0, 0},
     {"vid_aspect",&vid_aspect, DEFAULT_INT, 0, NULL, 0, 0},
     {"vid_integer_scale",&vid_integer_scale, DEFAULT_INT, 1, NULL, 0, 0},
