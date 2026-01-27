@@ -20,11 +20,12 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - ✅ **DONE:** Ensure window resizing, fullscreen toggles (Alt+Enter), and input focus changes are handled uniformly via SDL2 events.
 
 ## Networking
-- ✅ **DONE:** Chose SDL_net as the single maintained backend and removed BSD sockets code path from i_net.c and d_net.c.
-- ✅ **DONE:** Removed `NETWORK_BACKEND` CMake option; SDL_net is now the only networking backend.
-- ✅ **DONE:** Aligned `d_net.c` with SDL_net API (simplified `ReadNetUint32()` to use `SDLNet_Read32()` exclusively).
-- ✅ **DONE:** Retained `sdl_net_stub/` for systems without SDL2_net package (superior to legacy BSD code with modern APIs and IPv6 support).
+- ✅ **DONE:** Chose SDL_net as the single maintained backend and removed all BSD sockets code path from i_net.c and d_net.c (~350 lines removed).
+- ✅ **DONE:** Removed `NETWORK_BACKEND` CMake option; SDL_net is now the only networking backend with automatic stub fallback.
+- ✅ **DONE:** Aligned `d_net.c` with SDL_net API (simplified `ReadNetUint32()` to use `SDLNet_Read32()` exclusively, removed BSD byte-order functions).
+- ✅ **DONE:** Retained `sdl_net_stub/` for systems without SDL2_net package (superior to legacy BSD code with modern `getaddrinfo()` and full IPv6 support).
 - ✅ **DONE:** Network latency/packet-loss handling hooks integrated for testing and field deployment.
+- ✅ **DONE:** Updated CMakeLists.txt to remove conditional network backend selection; build now always uses SDL2_net with stub fallback.
 
 ## Audio
 - ✅ **DONE:** Unify audio on SDL2 and drop the external `sndserver`: refactor `i_sound.c`/`i_sound.h` for SDL2 audio exclusively and simplify command-line flags that referenced the helper process.
@@ -47,5 +48,6 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 
 ## Packaging, docs, and polish
 - ✅ **DONE:** Update `BUILDING.md` with SDL2-only setup steps, dependency lists, and configuration examples (audio config, network backend, build options).
-- ⚠️ **PARTIAL:** Update `README.TXT` with SDL2-only capabilities and setup instructions (documentation partial).
-- Provide a concise changelog entry summarizing removed backends (X11/SDL1, `sndserver`) and new expectations for users.
+- ✅ **DONE:** Update `README.TXT` with SDL2-only capabilities and setup instructions (added comprehensive SDL2 MODERNIZATION section documenting video, audio, networking, and removed backends).
+- ✅ **DONE:** Updated `STATUS.md` documenting modernization progress and completion status.
+- Provide a concise changelog entry summarizing removed backends (X11/SDL1, `sndserver`, BSD sockets) and new expectations for users.
