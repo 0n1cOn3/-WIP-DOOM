@@ -264,8 +264,9 @@ void W_Reload (void)
 	 i<reloadlump+lumpcount ;
 	 i++,lump_p++, fileinfo++)
     {
-	if (lumpcache[i])
-	    Z_Free (lumpcache[i]);
+	// Don't Z_Free - these are already freed by Z_FreeTags above
+	// Just clear the cache entry so next load will reload from disk
+	lumpcache[i] = NULL;
 
 	lump_p->position = LONG(fileinfo->filepos);
 	lump_p->size = LONG(fileinfo->size);
