@@ -30,6 +30,7 @@ static int ScreenWidth = SCREENWIDTH;
 static int ScreenHeight = SCREENHEIGHT;
 
 static int mouse_button_state = 0;
+static int fullscreen_mode = 0;
 
 static uint8_t scale_palette_value(uint8_t value)
 {
@@ -136,6 +137,12 @@ void I_InitGraphics(void)
         I_Error("SDL renderer creation failed: %s", SDL_GetError());
     }
 
+    // Set logical rendering size for automatic 4:3 aspect ratio preservation.
+    // Using 320x240 instead of 320x200 to account for square pixels on modern displays.
+    // Original DOOM used 320x200 on 4:3 CRT monitors with non-square pixels (~1.2:1 pixel aspect).
+    // This maintains authentic 4:3 aspect ratio on modern square-pixel displays.
+    SDL_RenderSetLogicalSize(renderer, ScreenWidth, 240);
+
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ScreenWidth, ScreenHeight);
     if (!texture)
     {
@@ -211,9 +218,33 @@ void I_StartTic(void)
             case SDL_QUIT:
                 I_Quit();
                 break;
+            case SDL_WINDOWEVENT:
+                switch (event.window.event)
+                {
+                    case SDL_WINDOWEVENT_FOCUS_LOST:
+                        // Window lost focus - game continues but user may want to pause
+                        break;
+                    case SDL_WINDOWEVENT_FOCUS_GAINED:
+                        // Window regained focus
+                        break;
+                    // Note: SDL_WINDOWEVENT_SIZE_CHANGED not needed because
+                    // SDL_RenderSetLogicalSize handles resize automatically
+                }
+                break;
             case SDL_KEYDOWN:
             case SDL_KEYUP:
             {
+                // Handle Alt+Enter for fullscreen toggle (only on KEYDOWN)
+                if (event.type == SDL_KEYDOWN &&
+                    event.key.keysym.sym == SDLK_RETURN &&
+                    (event.key.keysym.mod & KMOD_ALT))
+                {
+                    fullscreen_mode = !fullscreen_mode;
+                    SDL_SetWindowFullscreen(window,
+                        fullscreen_mode ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+                    break;
+                }
+
                 int key = sdl_translate_key(event.key.keysym.sym);
                 if (key)
                 {
