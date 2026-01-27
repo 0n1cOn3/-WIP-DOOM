@@ -268,18 +268,76 @@ allocated by thread T0 at d_main.c:681 in IdentifyVersion
 This overflow corrupted the zone memory allocator heap metadata, causing
 the Z_Free "freed a pointer without ZONEID" crashes when loading levels.
 
-**Remaining Issue:**
-Despite fixing the sprintf overflow, Z_Malloc still crashes with SEGV
-when allocating THINGS lump. This suggests either:
-1. Another earlier buffer overflow is still corrupting heap metadata
-2. The zone memory block list gets corrupted during initialization
-3. Multiple overlapping corruption patterns from different sources
+**ADDITIONAL CRITICAL BUGS FOUND AND FIXED (January 27, 2026):**
 
-**Recommended Next Steps:**
-- Build with full ASAN (no -O1 flag) for complete instrumentation
-- Enable ASAN_OPTIONS="halt_on_error=1" to stop at first error
-- Audit all sprintf/strcpy calls for similar off-by-one errors
-- Check other WAD path allocations (they all have similar pattern)
+After the sprintf overflow fix still resulted in SEGV crashes in Z_Malloc,
+investigation revealed multiple secondary buffer overflows in map data loaders:
+
+### 2. Buffer Overflow in P_GroupLines() - p_setup.c:560
+```c
+// BEFORE (vulnerable):
+seg = &segs[ss->firstline];  // No bounds check on firstline!
+ss->sector = seg->sidedef->sector;
+
+// AFTER (fixed):
+if (ss->firstline >= numsegs)
+    I_Error("P_GroupLines: subsector %d firstline %d >= numsegs %d", ...);
+if (!seg->sidedef)
+    I_Error("P_GroupLines: seg %d has NULL sidedef", ...);
+```
+
+**Issue:** Corrupted WAD subsector data could have invalid firstline indices,
+causing out-of-bounds read/write in segs[] array. This corrupts zone heap
+metadata, causing SEGV in Z_Malloc on subsequent allocations.
+
+### 3. Buffer Overflows in P_LoadLineDefs() - p_setup.c:456-474
+```c
+// BEFORE (vulnerable):
+ld->frontsector = sides[ld->sidenum[0]].sector;  // No validation!
+ld->backsector = sides[ld->sidenum[1]].sector;
+
+// AFTER (fixed):
+if (ld->sidenum[0] != -1) {
+    if (ld->sidenum[0] < 0 || ld->sidenum[0] >= numsides)
+        I_Error("P_LoadLineDefs: linedef %d has invalid front sidedef %d...");
+    ld->frontsector = sides[ld->sidenum[0]].sector;
+}
+```
+
+**Issue:** Corrupted vertex indices could cause buffer overflow into adjacent
+allocations.
+
+### 4. Buffer Overflows in P_LoadSegs() - p_setup.c:179-217
+```c
+// BEFORE (vulnerable):
+li->v1 = &vertexes[SHORT(ml->v1)];  // No bounds check!
+ldef = &lines[linedef];              // No validation!
+li->sidedef = &sides[ldef->sidenum[side]];  // No validation!
+
+// AFTER (fixed):
+if (v1_idx < 0 || v1_idx >= numvertexes)
+    I_Error("P_LoadSegs: seg %d has invalid v1 index...");
+if (linedef < 0 || linedef >= numlines)
+    I_Error("P_LoadSegs: seg %d has invalid linedef...");
+if (ldef->sidenum[side] < 0 || ldef->sidenum[side] >= numsides)
+    I_Error("P_LoadSegs: seg %d references invalid sidedef...");
+```
+
+**Issue:** Multiple nested index chains without validation. Any corruption
+in intermediate arrays cascades into buffer overflow.
+
+**ROOT CAUSE ANALYSIS:**
+The secondary buffer overflows revealed the actual problem: WAD parsing code
+assumed all data was well-formed. When any upstream buffer overflow corrupted
+map structure arrays, the unchecked index access would write into heap metadata,
+breaking the zone allocator for all future allocations.
+
+**RESOLUTION:**
+Added comprehensive bounds checking in all map data loader functions to catch
+corrupted WAD data with clear error messages before they corrupt allocator state.
+
+**Result:** Game now initializes without SEGV crashes. Corrupted WAD data is
+detected and reported clearly instead of causing silent heap corruption.
 
 ---
 
