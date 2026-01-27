@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 #include <pthread.h>
 #include <unistd.h>
 
@@ -91,6 +92,7 @@ unsigned int channelstepremainder[NUM_CHANNELS];
 // The channel data pointers, start and end.
 unsigned char *channels[NUM_CHANNELS];
 unsigned char *channelsend[NUM_CHANNELS];
+unsigned char *channelstartptr[NUM_CHANNELS];
 
 // Time/gametic that the channel started playing.
 int channelstart[NUM_CHANNELS];
@@ -315,23 +317,33 @@ addsfx
     // We found the oldest playing sound,
     //  rather use that than just overwriting a playing sound.
     if (channels[channel])
-	channels[channel] = 0;
+    {
+        channels[channel] = 0;
+        channelstartptr[channel] = 0;
+        channelsend[channel] = 0;
+    }
 
     // Okay, in the less recent channel,
     //  we will handle the new SFX.
     // Set pointers to raw data.
     channels[channel] = S_sfx[sfxid].data;
+    channelstartptr[channel] = channels[channel];
     channelsend[channel] = channels[channel] + lengths[sfxid];
 
     // Should be gametic, I presume.
     channelstart[channel] = gametic;
 
     // Pointers to left and right scalers.
-    scaled_volume = ScaleSfxVolume(volume);
-    channelleftvol_lookup[channel] =
-	&vol_lookup[( 127 - seperation ) * 256 + scaled_volume * 256];
-    channelrightvol_lookup[channel] =
-	&vol_lookup[seperation * 256 + scaled_volume * 256];
+    // Clamp pan (0 = full left, 255 = full right) and compute per-ear volume.
+    if (seperation < 0) seperation = 0;
+    if (seperation > 255) seperation = 255;
+
+    scaled_volume = ScaleSfxVolume(volume); // 0..127
+    int leftvol = (scaled_volume * (255 - seperation)) / 255;
+    int rightvol = (scaled_volume * seperation) / 255;
+
+    channelleftvol_lookup[channel]  = &vol_lookup[leftvol * 256];
+    channelrightvol_lookup[channel] = &vol_lookup[rightvol * 256];
 
     // Seperation, that is, orientation/stereo.
     //  range is, effectively, -1 to 1.
@@ -382,6 +394,17 @@ I_StartSound
     return rc;
 }
 
+static void InitSteptable(void)
+{
+    // Build pitch step table (fixed-point, 0.16 format) centered at 128.
+    // Original DOOM used an exponential curve: 2^((i-128)/64) * 65536.
+    for (int i = 0; i < 256; ++i)
+    {
+        double step = pow(2.0, (i - 128) / 64.0);
+        steptable[i] = (int)(step * 65536.0);
+    }
+}
+
 
 //
 // Stops a sound channel.
@@ -395,6 +418,8 @@ void I_StopSound(int handle)
 	if (channelhandles[i] == handle)
 	{
 	    channels[i] = 0;
+            channelstartptr[i] = 0;
+            channelsend[i] = 0;
 	}
     }
     UnlockAudioDevice();
@@ -497,6 +522,17 @@ void I_UpdateSound( void )
 	{
 	    if (channels[ chan ])
 	    {
+                // Sanity-check pointer bounds to avoid corrupt channel pointers.
+                if (!channelstartptr[chan] || !channelsend[chan] ||
+                    channels[chan] < channelstartptr[chan] ||
+                    channels[chan] >= channelsend[chan])
+                {
+                    channels[chan] = 0;
+                    channelstartptr[chan] = 0;
+                    channelsend[chan] = 0;
+                    continue;
+                }
+
 		sample = *channels[ chan ];
 		dl += channelleftvol_lookup[ chan ][sample];
 		dr += channelrightvol_lookup[ chan ][sample];
@@ -505,7 +541,11 @@ void I_UpdateSound( void )
 		channelstepremainder[ chan ] &= 65536-1;
 
 		if (channels[ chan ] >= channelsend[ chan ])
+                {
 		    channels[ chan ] = 0;
+                    channelstartptr[chan] = 0;
+                    channelsend[chan] = 0;
+                }
 	    }
 	}
 
@@ -643,6 +683,8 @@ void I_InitSound(void)
     for (i=0 ; i<NUMSFX ; i++)
         S_sfx[i].data = NULL;
 
+    InitSteptable();
+
     // Load all sound effects
     fprintf( stderr, "I_InitSound: ");
 
@@ -658,7 +700,7 @@ void I_InitSound(void)
         {
             // Previously loaded already?
             S_sfx[i].data = S_sfx[i].link->data;
-            lengths[i] = lengths[(S_sfx[i].link - S_sfx) / sizeof(sfxinfo_t)];
+            lengths[i] = lengths[S_sfx[i].link - S_sfx];
         }
     }
 
@@ -730,6 +772,8 @@ void I_SetChannels()
 	channelhandles[i] = -1;
 	channelstep[i] = 0;
 	channelstepremainder[i] = 0;
+	channelstartptr[i] = 0;
+	channelsend[i] = 0;
     }
     UnlockAudioDevice();
 }

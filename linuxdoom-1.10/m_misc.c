@@ -284,7 +284,8 @@ default_t       defaults[] =
     {"joyb_use",&joybuse, DEFAULT_INT, 3, NULL, 0, 0},
     {"joyb_speed",&joybspeed, DEFAULT_INT, 2, NULL, 0, 0},
 
-    {"screenblocks",&screenblocks, DEFAULT_INT, 9, NULL, 0, 0},
+    // Default to maximum view size; 11 removes the letterboxed wallpaper on modern displays.
+    {"screenblocks",&screenblocks, DEFAULT_INT, 11, NULL, 0, 0},
     {"detaillevel",&detailLevel, DEFAULT_INT, 0, NULL, 0, 0},
 
     {"snd_channels",&numChannels, DEFAULT_INT, 3, NULL, 0, 0},
@@ -425,6 +426,13 @@ void M_LoadDefaults (void)
 		
 	fclose (f);
     }
+
+    // Clamp screen size to sensible bounds for modern displays.
+    // Older configs defaulted to 9, which leaves a large wallpaper border.
+    if (screenblocks < 10)
+        screenblocks = 10;
+    else if (screenblocks > 11)
+        screenblocks = 11;
 }
 
 

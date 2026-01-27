@@ -1,5 +1,6 @@
 build/
 build-*/
+build_no_*/
 cmake-build-*/
 out/
 dist/
@@ -41,7 +42,11 @@ core.*
 *.user
 *.user.*
 *.config.user
+debug.txt
 compile_commands.json
 build-make/
 _codeql_build_dir/
 _codeql_detected_source_root
+*.dsg
+DEBUGGING.md
+legacy/

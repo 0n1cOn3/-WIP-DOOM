@@ -19,6 +19,9 @@ fi
 BIN_DIR=${BIN_DIR:-"./build/bin"}
 BIN_PATH="$BIN_DIR/linuxdoom"
 
+# Silence external LeakSanitizer noise (GTK/fontconfig/Wayland) unless caller overrides.
+export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=0}"
+
 if [ ! -x "$BIN_PATH" ]; then
   echo "Error: $BIN_PATH not found or not executable" >&2
   exit 1
