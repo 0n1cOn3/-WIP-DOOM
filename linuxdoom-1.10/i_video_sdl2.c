@@ -272,10 +272,20 @@ void I_InitGraphics(void)
         I_Error("SDL renderer creation failed: %s", SDL_GetError());
     }
 
-    // Set logical rendering size to 320x200 - SDL2 will automatically scale this to fill
-    // the window while maintaining aspect ratio. This is much simpler and more efficient
-    // than manual destination rectangle calculation.
-    SDL_RenderSetLogicalSize(renderer, ScreenWidth, ScreenHeight);
+    // Set logical rendering size with proper aspect ratio handling
+    // For 4:3, use 320x240 to match the visual appearance of original DOOM
+    int logical_width = ScreenWidth;
+    int logical_height = (vid_aspect == 1)
+        ? (int)(ScreenWidth * 9.0f / 16.0f)  // widescreen: 16:9
+        : (int)(ScreenWidth * 3.0f / 4.0f);  // standard: 4:3 = 240
+
+    if (vid_aspect == 2)
+    {
+        // stretch: use actual game resolution
+        logical_height = ScreenHeight;
+    }
+
+    SDL_RenderSetLogicalSize(renderer, logical_width, logical_height);
 
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ScreenWidth, ScreenHeight);
     if (!texture)
