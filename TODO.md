@@ -43,6 +43,17 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - Re-evaluate BLOCKMAP/REJECT reliance in `p_map.c`, `p_sight.c`, and `p_inter.c`; prototype BSP-friendly alternatives and document any required map-format expectations.
 - Audit sprite/patch scaling, automap overlays, and intermission screens for SDL2 resolution independence.
 
+## Advanced graphics, mods, and content (Future)
+- [ ] Add Vulkan renderer with OpenGL fallback.
+- [ ] Enhance settings menu with shader selection under Graphics:
+  - Classic DOOM shaders.
+  - Modern DOOM shaders + HD graphics (assets in `/home/hx/Downloads/GZDoom_HD_Texture_pack.6.rar` and `/home/hx/Downloads/HDHQDoom.rar`).
+- [ ] Add HQ music from `HDHQDoom.rar`.
+- [ ] Add toggle for enabling/disabling blood (from `HDHQDoom.rar`).
+- [ ] Allow GZDoom mods and shaders to be used; provide an API for it.
+- [ ] Implement 2.5D raymarching inside a GLES 3.0 shader.
+- [ ] Preload all sprites into shader VRAM; pass 2D sprite positions + camera to geometry shader.
+
 ## Save/load, demos, and deterministic behavior
 - Verify savegame and demo playback determinism after SDL2, networking, and audio changes; update any timing assumptions in `p_tick.c` and input aggregation code.
 - Add minimal regression checks (even manual scripts) to cover save/load and demo playback across common WADs.

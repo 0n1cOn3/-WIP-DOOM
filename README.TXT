@@ -99,6 +99,27 @@ BUILDING
 
 The resulting binary is written to `build/bin/linuxdoom`.
 
+RUNNING
+-------
+You must supply an IWAD to run the game:
+
+    DOOMWADDIR=/path/to/iwads ./build/bin/linuxdoom
+
+If you have a PWAD, supply it alongside the IWAD:
+
+    DOOMWADDIR=/path/to/iwads ./build/bin/linuxdoom -file /path/to/MOD.WAD
+
+Convenience wrapper:
+
+    ./run-linuxdoom.sh /path/to/DOOM.WAD
+    IWAD_PATH=/path/to/DOOM.WAD PWAD_PATH=/path/to/MOD.WAD ./run-linuxdoom.sh
+
+Note: `net_harness` is a networking test tool, not a game launcher.
+
+Display options:
+- `-widescreen` scales output to a 16:9 target aspect ratio (stretched).
+- `-stretch` stretches to fill the window without preserving aspect.
+
 SDL2 MODERNIZATION
 -------------------
 This version of DOOM has been modernized to use SDL2 for all platform interfaces:

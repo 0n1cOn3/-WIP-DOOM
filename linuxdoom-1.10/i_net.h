@@ -44,6 +44,10 @@ void I_NetUnpackBuffer(const doomdata_t *src, doomdata_t *dest);
 // Simple regression harness entry point.
 int I_RunNetworkHarness(int argc, char **argv);
 
+int I_GetNetLatencyMs(void);
+int I_GetNetPacketLoss(void);
+void I_SetNetLatencyMs(int ms);
+void I_SetNetPacketLoss(int percent);
 
 #endif
 //-----------------------------------------------------------------------------

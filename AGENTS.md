@@ -6,12 +6,15 @@ This codebase contains the legacy Linux Doom sources with a partially modernized
 - The codebase is now SDL2-only: video, audio, input, and networking all use SDL2 (or SDL2_net for networking).
 - The top-level CMake build is the source of truth. Configure with `cmake -S . -B build` and build with `cmake --build build`.
   - Network backend defaults to SDL2_net with automatic stub fallback if system library is unavailable.
+  - Music backends are fetched via CMake `FetchContent` (libADLMIDI/libOPNMIDI); a C++ compiler is required.
+  - ALSA is optional and enables the sequencer fallback when present.
   - No build options needed to select backends; SDL2 is the only video/audio implementation.
 - If you change code (not just docs), run the build after configuration. There are no automated tests.
 
 ## Current status of the port to modern APIs
 - ✅ **SDL2 Video**: `linuxdoom-1.10/i_video_sdl2.c` is the only video backend. Legacy X11/SDL1 code removed.
 - ✅ **SDL2 Audio**: `linuxdoom-1.10/i_sound.c` uses SDL2 audio exclusively. Legacy sndserver, OSS/ALSA removed.
+- ✅ **Music Playback**: ADLMIDI (OPL3) + OPNMIDI (OPN2) with ALSA sequencer fallback.
 - ✅ **SDL2_net Networking**: `linuxdoom-1.10/i_net.c` uses SDL2_net exclusively. BSD sockets code removed. Auto-injects SDL_net stub when system library unavailable.
 - ✅ **Build System**: CMake builds a single `linuxdoom` target. Automatic 4:3 aspect ratio preservation via SDL_RenderSetLogicalSize().
 
@@ -44,3 +47,8 @@ See `TODO.md` for the complete modernization checklist. Below are the remaining 
 - Add optional aspect ratio modes (4:3, widescreen, stretched) via command-line flags
 - Evaluate resolution independence for sprites, patches, HUD (currently fixed at 320x200 logical resolution)
 - Consider advanced graphics features (widescreen rendering, HUD scaling for modern displays)
+- Add Vulkan renderer with OpenGL fallback
+- Add shader selection UI (Classic vs Modern DOOM + HD graphics)
+- Add HQ music from `HDHQDoom.rar` and blood toggle (HDHQDoom assets)
+- Allow GZDoom mods/shaders via a dedicated API
+- Investigate GLES 3.0 raymarching and sprite VRAM upload path

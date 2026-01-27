@@ -1,6 +1,7 @@
 # Building linuxdoom
 
 This project uses SDL2 for all platform interfaces: video, input, audio, and networking.
+Music playback is provided by libADLMIDI (OPL3) and libOPNMIDI (OPN2), with ALSA sequencer as an optional fallback.
 The build system is designed to work out-of-the-box with minimal configuration.
 
 ## Prerequisites
@@ -11,6 +12,7 @@ selected backends:
 - Common: `build-essential`, `cmake`
 - SDL2 video/input (default): `libsdl2-dev`
 - SDL_net networking (default): `libsdl2-net-dev`
+- ALSA sequencer fallback (optional): `libasound2-dev`
 - BSD networking: typically provided by libc
 
 ## Example build
@@ -51,8 +53,21 @@ and rebuild. This requires no other changes as the mixing algorithm is format-ag
 After building, verify the build by running the binary:
 
 ```bash
-./build/bin/linuxdoom -iwad /path/to/doom.wad
+export DOOMWADDIR=/path/to/iwad
+./build/bin/linuxdoom
+```
+
+Alternatively, use the wrapper script:
+
+```bash
+./run-linuxdoom.sh /path/to/DOOM.WAD
 ```
 
 Press `Alt+Enter` to toggle fullscreen mode. The game should display with proper 4:3
 aspect ratio (with letterboxing/pillarboxing as needed on modern displays).
+
+## Music Backends
+
+The build pulls libADLMIDI and libOPNMIDI via `FetchContent` (GPL-compatible). ALSA is used
+only when available to provide a sequencer fallback. Music backend selection is available
+in the Sound menu.

@@ -31,7 +31,12 @@ static int ScreenWidth = SCREENWIDTH;
 static int ScreenHeight = SCREENHEIGHT;
 
 static int mouse_button_state = 0;
-static int fullscreen_mode = 0;
+
+int vid_window_width = 1280;
+int vid_window_height = 720;
+int vid_fullscreen = 0;
+int vid_aspect = 0;        // 0 = 4:3, 1 = 16:9, 2 = stretch
+int vid_integer_scale = 1;
 
 static void I_GetRenderDestRect(SDL_Rect *dest)
 {
@@ -47,13 +52,27 @@ static void I_GetRenderDestRect(SDL_Rect *dest)
         return;
     }
 
-    const float base_width = (float)ScreenWidth;
-    const float base_height = (float)ScreenHeight * 6.0f / 5.0f;
-    float scale = fminf(output_width / base_width, output_height / base_height);
-    int integer_scale = (int)scale;
-    if (integer_scale >= 1)
+    if (vid_aspect == 2)
     {
-        scale = (float)integer_scale;
+        dest->x = 0;
+        dest->y = 0;
+        dest->w = output_width;
+        dest->h = output_height;
+        return;
+    }
+
+    const float base_width = (float)ScreenWidth;
+    const float base_height = (vid_aspect == 1)
+        ? (base_width * 9.0f / 16.0f)
+        : ((float)ScreenHeight * 6.0f / 5.0f);
+    float scale = fminf(output_width / base_width, output_height / base_height);
+    if (vid_integer_scale)
+    {
+        int integer_scale = (int)scale;
+        if (integer_scale >= 1)
+        {
+            scale = (float)integer_scale;
+        }
     }
 
     dest->w = (int)lroundf(base_width * scale);
@@ -64,9 +83,7 @@ static void I_GetRenderDestRect(SDL_Rect *dest)
 
 static uint8_t scale_palette_value(uint8_t value)
 {
-    /* The original palette data tops out around 63; scale for SDL. */
-    uint32_t scaled = (uint32_t)value * 4;
-    return (scaled > 255u) ? 255u : (uint8_t)scaled;
+    return value;
 }
 
 static int sdl_translate_key(SDL_Keycode key)
@@ -143,25 +160,43 @@ void I_ShutdownGraphics(void)
 
 void I_InitGraphics(void)
 {
+    if (M_CheckParm("-widescreen"))
+        vid_aspect = 1;
+    if (M_CheckParm("-stretch"))
+        vid_aspect = 2;
+    if (M_CheckParm("-fullscreen"))
+        vid_fullscreen = 1;
+    if (M_CheckParm("-windowed"))
+        vid_fullscreen = 0;
+
     if (SDL_InitSubSystem(SDL_INIT_VIDEO) < 0)
     {
         I_Error("SDL video init failed: %s", SDL_GetError());
     }
 
+    if (vid_window_width <= 0)
+        vid_window_width = ScreenWidth * 2;
+    if (vid_window_height <= 0)
+        vid_window_height = ScreenHeight * 2;
+
+    Uint32 window_flags = SDL_WINDOW_RESIZABLE;
+    if (vid_fullscreen)
+        window_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+
     window = SDL_CreateWindow(
         "Doom",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
-        ScreenWidth * 2,
-        ScreenHeight * 2,
-        SDL_WINDOW_RESIZABLE);
+        vid_window_width,
+        vid_window_height,
+        window_flags);
 
     if (!window)
     {
         I_Error("SDL window creation failed: %s", SDL_GetError());
     }
 
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, vid_integer_scale ? "nearest" : "linear");
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer)
@@ -177,6 +212,8 @@ void I_InitGraphics(void)
         I_Error("SDL texture creation failed: %s", SDL_GetError());
     }
 
+    SDL_SetTextureScaleMode(texture, vid_integer_scale ? SDL_ScaleModeNearest : SDL_ScaleModeLinear);
+
     video_buffer = (uint32_t *)malloc(ScreenWidth * ScreenHeight * sizeof(uint32_t));
     if (!video_buffer)
     {
@@ -185,6 +222,24 @@ void I_InitGraphics(void)
 
     SDL_ShowCursor(SDL_DISABLE);
     SDL_SetRelativeMouseMode(SDL_TRUE);
+}
+
+void I_ApplyVideoSettings(void)
+{
+    if (!window || !renderer)
+        return;
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, vid_integer_scale ? "nearest" : "linear");
+    if (texture)
+        SDL_SetTextureScaleMode(texture, vid_integer_scale ? SDL_ScaleModeNearest : SDL_ScaleModeLinear);
+
+    if (vid_fullscreen)
+        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    else
+        SDL_SetWindowFullscreen(window, 0);
+
+    if (!vid_fullscreen && vid_window_width > 0 && vid_window_height > 0)
+        SDL_SetWindowSize(window, vid_window_width, vid_window_height);
 }
 
 void I_UpdateNoBlit(void)
@@ -269,9 +324,8 @@ void I_StartTic(void)
                     event.key.keysym.sym == SDLK_RETURN &&
                     (event.key.keysym.mod & KMOD_ALT))
                 {
-                    fullscreen_mode = !fullscreen_mode;
-                    SDL_SetWindowFullscreen(window,
-                        fullscreen_mode ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+                    vid_fullscreen = !vid_fullscreen;
+                    I_ApplyVideoSettings();
                     break;
                 }
 

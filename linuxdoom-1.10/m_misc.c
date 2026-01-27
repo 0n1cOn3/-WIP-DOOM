@@ -207,6 +207,16 @@ extern int	showMessages;
 
 // machine-independent sound params
 extern	int	numChannels;
+extern int	music_backend;
+
+extern int	vid_window_width;
+extern int	vid_window_height;
+extern int	vid_fullscreen;
+extern int	vid_aspect;
+extern int	vid_integer_scale;
+
+extern int	net_latency_ms;
+extern int	net_packet_loss;
 
 #ifdef LINUX
 char*		mousetype;
@@ -239,6 +249,7 @@ default_t       defaults[] =
     {"mouse_sensitivity",&mouseSensitivity, DEFAULT_INT, 5, NULL, 0, 0},
     {"sfx_volume",&snd_SfxVolume, DEFAULT_INT, 8, NULL, 0, 0},
     {"music_volume",&snd_MusicVolume, DEFAULT_INT, 8, NULL, 0, 0},
+    {"music_backend",&music_backend, DEFAULT_INT, 0, NULL, 0, 0},
     {"show_messages",&showMessages, DEFAULT_INT, 1, NULL, 0, 0},
 
 
@@ -277,6 +288,14 @@ default_t       defaults[] =
     {"detaillevel",&detailLevel, DEFAULT_INT, 0, NULL, 0, 0},
 
     {"snd_channels",&numChannels, DEFAULT_INT, 3, NULL, 0, 0},
+
+    {"vid_window_width",&vid_window_width, DEFAULT_INT, 1280, NULL, 0, 0},
+    {"vid_window_height",&vid_window_height, DEFAULT_INT, 720, NULL, 0, 0},
+    {"vid_fullscreen",&vid_fullscreen, DEFAULT_INT, 0, NULL, 0, 0},
+    {"vid_aspect",&vid_aspect, DEFAULT_INT, 0, NULL, 0, 0},
+    {"vid_integer_scale",&vid_integer_scale, DEFAULT_INT, 1, NULL, 0, 0},
+    {"net_latency_ms",&net_latency_ms, DEFAULT_INT, 0, NULL, 0, 0},
+    {"net_packet_loss",&net_packet_loss, DEFAULT_INT, 0, NULL, 0, 0},
 
 
 
@@ -536,5 +555,3 @@ void M_ScreenShot (void)
 	
     players[consoleplayer].message = "screen shot";
 }
-
-

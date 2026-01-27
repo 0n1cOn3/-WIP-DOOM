@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-This repository contains the legacy Linux Doom sources fully modernized to use SDL2 for all platform interfaces (video, audio, input, networking). The project **core modernization is complete** with SDL2 as the only multimedia backend. Remaining work focuses on testing, content consolidation, and optional enhancements.
+This repository contains the legacy Linux Doom sources fully modernized to use SDL2 for all platform interfaces (video, audio, input, networking). The project **core modernization is complete** with SDL2 as the only multimedia backend. Music playback is now supported via ADLMIDI/OPNMIDI with ALSA sequencer fallback. Remaining work focuses on testing, content consolidation, and optional enhancements.
 
 ## What Has Been Completed ✅
 
@@ -37,6 +37,7 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 - ✅ **Audio Mixing Cleaned**: Removed legacy 8-bit assumptions; documented 16-bit/stereo format
 - ✅ **Device Selection Removed**: Eliminated legacy DMX-era device selection code
 - ✅ **Sample Rate Configurable**: Audio format (11025 Hz, 16-bit stereo) clearly documented and easily modifiable
+- ✅ **Music Playback Restored**: ADLMIDI (OPL3) + OPNMIDI (OPN2) with ALSA sequencer fallback
 
 ### Documentation
 - ✅ **BUILDING.md**: Clear build instructions with SDL2 setup, audio configuration, and networking backend examples
@@ -132,6 +133,15 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 - 🔲 Document migration path for users
 - 🔲 Final packaging and release preparation
 
+#### 10. Advanced Graphics, Mods, and Content
+- 🔲 Add Vulkan renderer with OpenGL fallback
+- 🔲 Add shader selection UI (Classic DOOM vs Modern DOOM + HD graphics)
+- 🔲 Add HQ music from `HDHQDoom.rar`
+- 🔲 Add blood toggle (from `HDHQDoom.rar`)
+- 🔲 Allow GZDoom mods/shaders; provide API for loading/validation
+- 🔲 Implement 2.5D raymarching inside GLES 3.0 shader
+- 🔲 Preload sprites into shader VRAM; feed 2D positions + camera to geometry shader
+
 ## Key Files & Directories
 
 ### Build Configuration
@@ -172,8 +182,8 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 # Note: Requires SDL2 development libraries
 # On Debian/Ubuntu: sudo apt-get install libsdl2-dev libsdl2-net-dev
 
-# Configure with SDL_net (default)
-cmake -S . -B build -DNETWORK_BACKEND=SDL_NET
+# Configure
+cmake -S . -B build
 
 # Build
 cmake --build build
@@ -181,13 +191,9 @@ cmake --build build
 # Output: build/bin/linuxdoom
 ```
 
-### Alternative: BSD Networking
+### Optional: ALSA Sequencer Fallback
 
-```bash
-cmake -S . -B build
-cmake --build build
-# Build uses SDL2_net with automatic stub fallback if system library unavailable
-```
+Install `libasound2-dev` to enable ALSA sequencer output as a music fallback.
 
 ## Current Challenges
 

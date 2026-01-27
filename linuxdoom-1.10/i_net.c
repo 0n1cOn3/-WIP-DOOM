@@ -63,8 +63,8 @@ typedef uint16_t doom_port_t;
 // Network simulation variables for testing/debugging.
 // -netdelay <ms>: Add latency to outgoing packets (max 2000ms)
 // -packetloss <percent>: Randomly drop packets (0-99%)
-static int net_latency_ms = 0;
-static int net_packet_loss = 0;
+int net_latency_ms = 0;
+int net_packet_loss = 0;
 // Thread-safe RNG seed for network simulation
 static unsigned int net_rng_seed = 0;
 
@@ -96,6 +96,35 @@ static int ParsePositiveIntArg(const char *text, int upperBound, int fallback)
     return (int)value;
 }
 
+static int ClampInt(int value, int min_value, int max_value)
+{
+    if (value < min_value)
+        return min_value;
+    if (value > max_value)
+        return max_value;
+    return value;
+}
+
+int I_GetNetLatencyMs(void)
+{
+    return net_latency_ms;
+}
+
+int I_GetNetPacketLoss(void)
+{
+    return net_packet_loss;
+}
+
+void I_SetNetLatencyMs(int ms)
+{
+    net_latency_ms = ClampInt(ms, 0, 2000);
+}
+
+void I_SetNetPacketLoss(int percent)
+{
+    net_packet_loss = ClampInt(percent, 0, 99);
+}
+
 // Initialize network simulation parameters from command-line arguments.
 // Note: This function is called during single-threaded startup from I_InitNetwork().
 // The RNG seed initialization is not protected by a mutex as DOOM's initialization
@@ -113,11 +142,11 @@ static void InitNetworkSimulation(void)
 
     p = M_CheckParm("-netdelay");
     if (p && p < myargc - 1)
-        net_latency_ms = ParsePositiveIntArg(myargv[p + 1], 2000, 0);
+        I_SetNetLatencyMs(ParsePositiveIntArg(myargv[p + 1], 2000, 0));
 
     p = M_CheckParm("-packetloss");
     if (p && p < myargc - 1)
-        net_packet_loss = ParsePositiveIntArg(myargv[p + 1], 99, 0);
+        I_SetNetPacketLoss(ParsePositiveIntArg(myargv[p + 1], 99, 0));
 }
 
 // Thread-safe packet drop simulation using rand_r().
@@ -202,6 +231,14 @@ static UDPsocket             udpsocket;
 static UDPpacket            *recvpacket;
 static UDPpacket            *sendpacket;
 static IPaddress             sendaddress[MAXNETNODES];
+
+static boolean NetAddressesEqual(const IPaddress *a, const IPaddress *b)
+{
+    if (!a || !b)
+        return false;
+
+    return a->host == b->host && a->port == b->port;
+}
 
 static doom_port_t ParsePort(const char *text, doom_port_t fallback)
 {
@@ -337,7 +374,7 @@ boolean NetListen (void)
 
     for (i = 0; i < doomcom->numnodes; ++i)
     {
-        if (SDLNet_CompareAddresses(&recvpacket->address, &sendaddress[i]))
+        if (NetAddressesEqual(&recvpacket->address, &sendaddress[i]))
         {
             doomcom->remotenode = i;
             break;

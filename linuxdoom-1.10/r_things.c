@@ -38,6 +38,7 @@ rcsid[] = "$Id: r_things.c,v 1.5 1997/02/03 16:47:56 b1 Exp $";
 #include "w_wad.h"
 
 #include "r_local.h"
+#include "info.h"
 
 #include "doomstat.h"
 
@@ -161,7 +162,7 @@ R_InstallSpriteLump
 
 //
 // R_InitSpriteDefs
-// Pass a null terminated list of sprite names
+// Pass a list of sprite names
 //  (4 chars exactly) to be used.
 // Builds the sprite rotation matrixes to account
 //  for horizontally flipped sprites.
@@ -176,7 +177,6 @@ R_InstallSpriteLump
 //
 void R_InitSpriteDefs (char** namelist) 
 { 
-    char**	check;
     int		i;
     int		l;
     int		intname;
@@ -186,12 +186,7 @@ void R_InitSpriteDefs (char** namelist)
     int		end;
     int		patched;
 		
-    // count the number of sprite names
-    check = namelist;
-    while (*check != NULL)
-	check++;
-
-    numsprites = check-namelist;
+    numsprites = NUMSPRITES;
 	
     if (!numsprites)
 	return;
@@ -984,6 +979,4 @@ void R_DrawMasked (void)
     if (!viewangleoffset)		
 	R_DrawPlayerSprites ();
 }
-
-
 

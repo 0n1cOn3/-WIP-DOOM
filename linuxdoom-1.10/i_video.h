@@ -53,6 +53,13 @@ void I_ReadScreen (byte* scr);
 void I_BeginRead (void);
 void I_EndRead (void);
 
+extern int vid_window_width;
+extern int vid_window_height;
+extern int vid_fullscreen;
+extern int vid_aspect;
+extern int vid_integer_scale;
+
+void I_ApplyVideoSettings(void);
 
 
 #endif

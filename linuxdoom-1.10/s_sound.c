@@ -165,6 +165,7 @@ void S_Init
 
   // Whatever these did with DMX, these are rather dummies now.
   I_SetChannels();
+  I_InitMusic();
   
   S_SetSfxVolume(sfxVolume);
   // No music with Linux - another dummy.
@@ -650,7 +651,7 @@ S_ChangeMusic
 
     // load & register it
     music->data = (void *) W_CacheLumpNum(music->lumpnum, PU_MUSIC);
-    music->handle = I_RegisterSong(music->data);
+    music->handle = I_RegisterSong(music->data, W_LumpLength(music->lumpnum));
 
     // play it
     I_PlaySong(music->handle, looping);
@@ -846,7 +847,5 @@ S_getChannel
 
     return cnum;
 }
-
-
 
 

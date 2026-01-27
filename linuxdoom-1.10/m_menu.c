@@ -39,6 +39,8 @@ rcsid[] = "$Id: m_menu.c,v 1.7 1997/02/03 22:45:10 b1 Exp $";
 #include "d_main.h"
 
 #include "i_system.h"
+#include "i_sound.h"
+#include "i_net.h"
 #include "i_video.h"
 #include "z_zone.h"
 #include "v_video.h"
@@ -195,10 +197,21 @@ void M_ChangeMessages(int choice);
 void M_ChangeSensitivity(int choice);
 void M_SfxVol(int choice);
 void M_MusicVol(int choice);
+void M_MusicBackend(int choice);
 void M_ChangeDetail(int choice);
 void M_SizeDisplay(int choice);
 void M_StartGame(int choice);
 void M_Sound(int choice);
+void M_Modern(int choice);
+void M_ModernBack(int choice);
+void M_ModernDisplay(int choice);
+void M_ModernNetwork(int choice);
+void M_DisplayAspect(int choice);
+void M_DisplayScale(int choice);
+void M_DisplayResolution(int choice);
+void M_DisplayFullscreen(int choice);
+void M_NetLatency(int choice);
+void M_NetPacketLoss(int choice);
 
 void M_FinishReadThis(int choice);
 void M_LoadSelect(int choice);
@@ -214,6 +227,9 @@ void M_DrawNewGame(void);
 void M_DrawEpisode(void);
 void M_DrawOptions(void);
 void M_DrawSound(void);
+void M_DrawModern(void);
+void M_DrawDisplay(void);
+void M_DrawNetwork(void);
 void M_DrawLoad(void);
 void M_DrawSave(void);
 
@@ -229,6 +245,9 @@ void M_StartControlPanel(void);
 void M_StartMessage(char *string,void *routine,boolean input);
 void M_StopMessage(void);
 void M_ClearMenus (void);
+
+extern int music_backend;
+static const char* GetAspectLabel(void);
 
 
 
@@ -346,19 +365,23 @@ enum
     mousesens,
     option_empty2,
     soundvol,
+    option_empty3,
+    modernopt,
     opt_end
 } options_e;
 
 menuitem_t OptionsMenu[]=
 {
-    {1,"M_ENDGAM",	M_EndGame,'e'},
-    {1,"M_MESSG",	M_ChangeMessages,'m'},
-    {1,"M_DETAIL",	M_ChangeDetail,'g'},
-    {2,"M_SCRNSZ",	M_SizeDisplay,'s'},
+    {1,"",		M_EndGame,'e'},
+    {1,"",		M_ChangeMessages,'m'},
+    {1,"",		M_ChangeDetail,'g'},
+    {2,"",		M_SizeDisplay,'s'},
     {-1,"",0},
-    {2,"M_MSENS",	M_ChangeSensitivity,'m'},
+    {2,"",		M_ChangeSensitivity,'m'},
     {-1,"",0},
-    {1,"M_SVOL",	M_Sound,'s'}
+    {1,"",		M_Sound,'s'},
+    {-1,"",0},
+    {1,"",		M_Modern,'m'}
 };
 
 menu_t  OptionsDef =
@@ -367,6 +390,94 @@ menu_t  OptionsDef =
     &MainDef,
     OptionsMenu,
     M_DrawOptions,
+    60,37,
+    0
+};
+
+//
+// MODERN SETTINGS MENU
+//
+enum
+{
+    modern_display,
+    modern_network,
+    modern_back,
+    modern_end
+} modern_e;
+
+menuitem_t ModernMenu[]=
+{
+    {1,"", M_ModernDisplay,'d'},
+    {1,"", M_ModernNetwork,'n'},
+    {1,"", M_ModernBack,'b'}
+};
+
+menu_t  ModernDef =
+{
+    modern_end,
+    &OptionsDef,
+    ModernMenu,
+    M_DrawModern,
+    60,37,
+    0
+};
+
+//
+// DISPLAY SETTINGS MENU
+//
+enum
+{
+    display_resolution,
+    display_fullscreen,
+    display_aspect,
+    display_integer_scale,
+    display_back,
+    display_end
+} display_e;
+
+menuitem_t DisplayMenu[]=
+{
+    {2,"", M_DisplayResolution,'r'},
+    {2,"", M_DisplayFullscreen,'f'},
+    {2,"", M_DisplayAspect,'a'},
+    {2,"", M_DisplayScale,'i'},
+    {1,"", M_Modern,'b'}
+};
+
+menu_t DisplayDef =
+{
+    display_end,
+    &ModernDef,
+    DisplayMenu,
+    M_DrawDisplay,
+    60,37,
+    0
+};
+
+//
+// NETWORK SETTINGS MENU
+//
+enum
+{
+    network_latency,
+    network_packet_loss,
+    network_back,
+    network_end
+} network_e;
+
+menuitem_t NetworkMenu[]=
+{
+    {2,"", M_NetLatency,'l'},
+    {2,"", M_NetPacketLoss,'p'},
+    {1,"", M_Modern,'b'}
+};
+
+menu_t NetworkDef =
+{
+    network_end,
+    &ModernDef,
+    NetworkMenu,
+    M_DrawNetwork,
     60,37,
     0
 };
@@ -424,6 +535,7 @@ enum
     sfx_vol,
     sfx_empty1,
     music_vol,
+    music_backend_item,
     sfx_empty2,
     sound_end
 } sound_e;
@@ -433,6 +545,7 @@ menuitem_t SoundMenu[]=
     {2,"M_SFXVOL",M_SfxVol,'s'},
     {-1,"",0},
     {2,"M_MUSVOL",M_MusicVol,'m'},
+    {2,"",M_MusicBackend,'b'},
     {-1,"",0}
 };
 
@@ -799,6 +912,7 @@ void M_DrawReadThis2(void)
 //
 void M_DrawSound(void)
 {
+    const char *backend_name = "UNKNOWN";
     V_DrawPatchDirect (60,38,0,W_CacheLumpName("M_SVOL",PU_CACHE));
 
     M_DrawThermo(SoundDef.x,SoundDef.y+LINEHEIGHT*(sfx_vol+1),
@@ -806,6 +920,26 @@ void M_DrawSound(void)
 
     M_DrawThermo(SoundDef.x,SoundDef.y+LINEHEIGHT*(music_vol+1),
 		 16,snd_MusicVolume);
+
+    switch (music_backend)
+    {
+	case 0:
+	    backend_name = "ADLMIDI";
+	    break;
+	case 1:
+	    backend_name = "OPNMIDI";
+	    break;
+	case 2:
+	    backend_name = "ALSA SEQ";
+	    break;
+	default:
+	    break;
+    }
+
+    M_WriteText(SoundDef.x, SoundDef.y + LINEHEIGHT*music_backend_item,
+		"MUSIC BACKEND");
+    M_WriteText(SoundDef.x + 120, SoundDef.y + LINEHEIGHT*music_backend_item,
+		(char *)backend_name);
 }
 
 void M_Sound(int choice)
@@ -845,6 +979,16 @@ void M_MusicVol(int choice)
     }
 	
     S_SetMusicVolume(snd_MusicVolume /* *8 */);
+}
+
+void M_MusicBackend(int choice)
+{
+    if (choice)
+	music_backend = (music_backend + 1) % 3;
+    else
+	music_backend = (music_backend + 2) % 3;
+
+    I_InitMusic();
 }
 
 
@@ -950,24 +1094,225 @@ char	msgNames[2][9]		= {"M_MSGOFF","M_MSGON"};
 
 void M_DrawOptions(void)
 {
+    char option_text[32];
     V_DrawPatchDirect (108,15,0,W_CacheLumpName("M_OPTTTL",PU_CACHE));
-	
-    V_DrawPatchDirect (OptionsDef.x + 175,OptionsDef.y+LINEHEIGHT*detail,0,
-		       W_CacheLumpName(detailNames[detailLevel],PU_CACHE));
 
-    V_DrawPatchDirect (OptionsDef.x + 120,OptionsDef.y+LINEHEIGHT*messages,0,
-		       W_CacheLumpName(msgNames[showMessages],PU_CACHE));
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*endgame, "END GAME");
+
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*messages, "MESSAGES");
+    sprintf(option_text, "%s", showMessages ? "ON" : "OFF");
+    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT*messages, option_text);
+
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*detail, "DETAIL");
+    sprintf(option_text, "%s", detailLevel ? "LOW" : "HIGH");
+    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT*detail, option_text);
 
     M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(mousesens+1),
 		 10,mouseSensitivity);
 	
     M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(scrnsize+1),
 		 9,screenSize);
+
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*scrnsize, "SCREEN SIZE");
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*mousesens, "MOUSE SENS");
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*soundvol, "SOUND VOLUME");
+
+    M_WriteText(OptionsDef.x, OptionsDef.y+LINEHEIGHT*modernopt,
+		"MODERN SETTINGS");
+}
+
+void M_DrawModern(void)
+{
+    int title_x = 160 - M_StringWidth("MODERN SETTINGS")/2;
+
+    M_WriteText(title_x, 15, "MODERN SETTINGS");
+    M_WriteText(ModernDef.x, ModernDef.y + LINEHEIGHT*modern_display, "DISPLAY");
+    M_WriteText(ModernDef.x, ModernDef.y + LINEHEIGHT*modern_network, "NETWORK");
+    M_WriteText(ModernDef.x, ModernDef.y + LINEHEIGHT*modern_back, "BACK");
+}
+
+void M_DrawDisplay(void)
+{
+    char value[32];
+    int value_x = DisplayDef.x + 140;
+    int title_x = 160 - M_StringWidth("DISPLAY SETTINGS")/2;
+
+    M_WriteText(title_x, 15, "DISPLAY SETTINGS");
+
+    M_WriteText(DisplayDef.x, DisplayDef.y + LINEHEIGHT*display_resolution, "RESOLUTION");
+    sprintf(value, "%dx%d", vid_window_width, vid_window_height);
+    M_WriteText(value_x, DisplayDef.y + LINEHEIGHT*display_resolution, value);
+
+    M_WriteText(DisplayDef.x, DisplayDef.y + LINEHEIGHT*display_fullscreen, "FULLSCREEN");
+    M_WriteText(value_x, DisplayDef.y + LINEHEIGHT*display_fullscreen,
+		vid_fullscreen ? "ON" : "OFF");
+
+    M_WriteText(DisplayDef.x, DisplayDef.y + LINEHEIGHT*display_aspect, "ASPECT");
+    M_WriteText(value_x, DisplayDef.y + LINEHEIGHT*display_aspect, (char *)GetAspectLabel());
+
+    M_WriteText(DisplayDef.x, DisplayDef.y + LINEHEIGHT*display_integer_scale, "INTEGER SCALE");
+    M_WriteText(value_x, DisplayDef.y + LINEHEIGHT*display_integer_scale,
+		vid_integer_scale ? "ON" : "OFF");
+
+    M_WriteText(DisplayDef.x, DisplayDef.y + LINEHEIGHT*display_back, "BACK");
+}
+
+void M_DrawNetwork(void)
+{
+    char value[32];
+    int value_x = NetworkDef.x + 140;
+    int title_x = 160 - M_StringWidth("NETWORK SETTINGS")/2;
+
+    M_WriteText(title_x, 15, "NETWORK SETTINGS");
+
+    M_WriteText(NetworkDef.x, NetworkDef.y + LINEHEIGHT*network_latency, "LATENCY");
+    sprintf(value, "%d MS", I_GetNetLatencyMs());
+    M_WriteText(value_x, NetworkDef.y + LINEHEIGHT*network_latency, value);
+
+    M_WriteText(NetworkDef.x, NetworkDef.y + LINEHEIGHT*network_packet_loss, "PACKET LOSS");
+    sprintf(value, "%d%%", I_GetNetPacketLoss());
+    M_WriteText(value_x, NetworkDef.y + LINEHEIGHT*network_packet_loss, value);
+
+    M_WriteText(NetworkDef.x, NetworkDef.y + LINEHEIGHT*network_back, "BACK");
+    M_WriteText(NetworkDef.x, NetworkDef.y + LINEHEIGHT*(network_back + 1), "SIMULATION ONLY");
 }
 
 void M_Options(int choice)
 {
     M_SetupNextMenu(&OptionsDef);
+}
+
+void M_Modern(int choice)
+{
+    M_SetupNextMenu(&ModernDef);
+}
+
+void M_ModernBack(int choice)
+{
+    M_SetupNextMenu(&OptionsDef);
+}
+
+void M_ModernDisplay(int choice)
+{
+    M_SetupNextMenu(&DisplayDef);
+}
+
+void M_ModernNetwork(int choice)
+{
+    M_SetupNextMenu(&NetworkDef);
+}
+
+typedef struct
+{
+    int width;
+    int height;
+} resolution_t;
+
+static const resolution_t display_resolutions[] =
+{
+    {640, 480},
+    {800, 600},
+    {960, 540},
+    {1024, 768},
+    {1280, 720},
+    {1600, 900},
+    {1920, 1080},
+    {2560, 1440},
+    {3840, 2160}
+};
+
+static int FindResolutionIndex(int width, int height)
+{
+    int i;
+    int count = (int)(sizeof(display_resolutions) / sizeof(display_resolutions[0]));
+    for (i = 0; i < count; i++)
+    {
+	if (display_resolutions[i].width == width &&
+	    display_resolutions[i].height == height)
+	{
+	    return i;
+	}
+    }
+    return -1;
+}
+
+static const char* GetAspectLabel(void)
+{
+    switch (vid_aspect)
+    {
+	case 1:
+	    return "16:9";
+	case 2:
+	    return "STRETCH";
+	default:
+	    return "4:3";
+    }
+}
+
+void M_DisplayResolution(int choice)
+{
+    int count = (int)(sizeof(display_resolutions) / sizeof(display_resolutions[0]));
+    int index = FindResolutionIndex(vid_window_width, vid_window_height);
+
+    if (index < 0)
+	index = 4;
+
+    if (choice)
+	index = (index + 1) % count;
+    else
+	index = (index + count - 1) % count;
+
+    vid_window_width = display_resolutions[index].width;
+    vid_window_height = display_resolutions[index].height;
+    I_ApplyVideoSettings();
+}
+
+void M_DisplayFullscreen(int choice)
+{
+    choice = 0;
+    vid_fullscreen = !vid_fullscreen;
+    I_ApplyVideoSettings();
+}
+
+void M_DisplayAspect(int choice)
+{
+    if (choice)
+	vid_aspect = (vid_aspect + 1) % 3;
+    else
+	vid_aspect = (vid_aspect + 2) % 3;
+    I_ApplyVideoSettings();
+}
+
+void M_DisplayScale(int choice)
+{
+    choice = 0;
+    vid_integer_scale = !vid_integer_scale;
+    I_ApplyVideoSettings();
+}
+
+void M_NetLatency(int choice)
+{
+    int latency = I_GetNetLatencyMs();
+    int delta = 25;
+
+    if (choice)
+	latency += delta;
+    else
+	latency -= delta;
+
+    I_SetNetLatencyMs(latency);
+}
+
+void M_NetPacketLoss(int choice)
+{
+    int loss = I_GetNetPacketLoss();
+
+    if (choice)
+	loss += 1;
+    else
+	loss -= 1;
+
+    I_SetNetPacketLoss(loss);
 }
 
 
@@ -1890,4 +2235,3 @@ void M_Init (void)
     }
     
 }
-
