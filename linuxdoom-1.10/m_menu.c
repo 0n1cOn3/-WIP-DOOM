@@ -252,6 +252,10 @@ void M_HostPlayers(int choice);
 void M_HostVanilla(int choice);
 void M_HostStart(int choice);
 void M_JoinRefresh(int choice);
+
+void M_ViewStatus(int choice);
+void M_Resume(int choice);
+void M_DrawPauseMenu(void);
 void M_JoinSelect(int choice);
 void M_JoinManual(int choice);
 
@@ -327,6 +331,40 @@ menu_t  MainDef =
     MainMenu,
     M_DrawMainMenu,
     60,64,
+    0
+};
+
+//
+// PAUSE MENU (shown when ESC pressed during gameplay)
+//
+enum
+{
+    pause_status = 0,
+    pause_save,
+    pause_load,
+    pause_options,
+    pause_quit,
+    pause_back,
+    pause_end
+} pause_e;
+
+menuitem_t PauseMenu[]=
+{
+    {1,"", M_ViewStatus,'s'},
+    {1,"", M_SaveGame,'s'},
+    {1,"", M_LoadGame,'l'},
+    {1,"", M_Options,'o'},
+    {1,"", M_QuitDOOM,'q'},
+    {1,"", M_Resume,'r'}
+};
+
+menu_t  PauseDef =
+{
+    pause_end,
+    &MainDef,
+    PauseMenu,
+    M_DrawPauseMenu,
+    60,50,
     0
 };
 
@@ -1076,6 +1114,47 @@ void M_OpenMainMenu(int choice)
 {
     (void)choice;
     M_SetupNextMenu(&MainDef);
+}
+
+void M_DrawPauseMenu(void)
+{
+    int title_x = 160 - M_StringWidth("PAUSE MENU")/2;
+    M_WriteText(title_x, 15, "PAUSE MENU");
+
+    // Display player status
+    M_WriteText(PauseDef.x, PauseDef.y - 30, "STATUS");
+
+    char status[64];
+    player_t *player = &players[consoleplayer];
+    int health = player->health;
+    int armor = player->armorpoints;
+
+    sprintf(status, "HEALTH: %d%%", health > 100 ? 100 : health);
+    M_WriteText(PauseDef.x + 80, PauseDef.y - 30, status);
+
+    sprintf(status, "ARMOR: %d%%", armor > 100 ? 100 : armor);
+    M_WriteText(PauseDef.x + 80, PauseDef.y - 20, status);
+
+    // Draw menu items
+    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_status, "VIEW STATUS");
+    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_save, "SAVE GAME");
+    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_load, "LOAD GAME");
+    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_options, "OPTIONS");
+    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_quit, "QUIT GAME");
+    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_back, "RESUME GAME");
+}
+
+void M_ViewStatus(int choice)
+{
+    (void)choice;
+    // Open a detailed status screen (can use existing help/read screens as overlay)
+    M_StartMessage("GAME STATUS\n\n" "NOT YET IMPLEMENTED\n\nPRESS A KEY", NULL, false);
+}
+
+void M_Resume(int choice)
+{
+    (void)choice;
+    M_ClearMenus();
 }
 
 
@@ -2966,9 +3045,19 @@ void M_StartControlPanel (void)
     // intro might call this repeatedly
     if (menuactive)
 	return;
-    
+
     menuactive = 1;
-    currentMenu = &MainDef;         // JDC
+
+    // If in gameplay, show pause menu instead of main menu
+    extern gamestate_t gamestate;
+    if (gamestate == GS_LEVEL && usergame && !demoplayback)
+    {
+	currentMenu = &PauseDef;
+    }
+    else
+    {
+	currentMenu = &MainDef;         // JDC
+    }
     itemOn = currentMenu->lastOn;   // JDC
 }
 
