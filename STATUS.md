@@ -46,6 +46,30 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 - ✅ **STATUS.md**: Detailed progress tracking and status documentation (this file)
 - ✅ **README.TXT**: Updated with SDL2 modernization section and legacy backend removal documentation
 
+### Critical Bug Fixes (January 27, 2026)
+**Memory Corruption & Crashes Resolved:**
+- ✅ **1-byte Buffer Overflow in IdentifyVersion()**: Fixed sprintf string length calculation (d_main.c:681)
+  - Caused zone allocator heap metadata corruption
+  - Fix: Changed `malloc(strlen(dir)+1+8+1)` → `malloc(strlen(dir)+1+9+1)` for "doomu.wad"
+- ✅ **Double-Free in W_Reload()**: Removed Z_Free calls on tag-managed lumpcache entries (w_wad.c)
+  - WAD lumps cached with PU_STATIC tag are managed by zone allocator's Z_FreeTags
+  - Individual Z_Free calls caused double-free corruption
+  - Fix: Changed to set lumpcache entries to NULL instead of freeing
+- ✅ **Premature Z_Free in Map Loaders**: Removed 8 Z_Free calls from cached lumps (p_setup.c)
+  - P_LoadVertexes, P_LoadSegs, P_LoadSubsectors, P_LoadSectors, P_LoadNodes, P_LoadThings, P_LoadLineDefs, P_LoadSideDefs
+  - Cached lumps should never be freed by individual functions
+- ✅ **32→64-bit Porting Bug in P_GroupLines()**: Fixed pointer array size calculation (p_setup.c:620)
+  - Allocated `total*4` bytes (32-bit pointer size) instead of `total*8` (64-bit pointer size)
+  - Caused buffer overflow corrupting zone allocator free list
+  - Fix: Changed to `Z_Malloc(total*sizeof(line_t*), ...)`
+  - **ROOT CAUSE**: This single bug was responsible for ALL Z_Malloc SEGV crashes during level loading
+- ✅ **Comprehensive Bounds Checking**: Added validation in map data loaders
+  - P_GroupLines: subsector->firstline validation, NULL sidedef/sector checks
+  - P_LoadLineDefs: vertex and sidedef index bounds checking
+  - P_LoadSegs: vertex, linedef, sidedef indices all validated
+
+**Result**: Game now successfully loads and initializes maps without crashes. ASAN reports no heap corruption or SEGV errors.
+
 ## What Is In Progress / Partially Complete ⚠️
 
 ### Video System
