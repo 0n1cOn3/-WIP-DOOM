@@ -134,7 +134,35 @@ int map_count = M_ScanAvailableMaps(1, available_maps, 32);
 
 ## Audio Issues
 
-### Symptom: Audio Crackling/Pops When Switching Menus
+### Investigation Progress (January 2026)
+
+After detailed memory debugging with allocation tracking and lump loading logs, we've identified that the crash occurs **during Z_Malloc for the THINGS lump**, not in THINGS processing itself.
+
+**Key Finding:** The zone memory allocator state is already corrupted before attempting to allocate THINGS. This suggests one of the map structure lumps being parsed is writing past its allocated buffer.
+
+**Corrupted Block Signature:**
+```
+ptr=0x7f0271114a9c (end of allocation [19])
+block->id=0x7f02 (corrupted - should be 0x1d4a11 ZONEID)
+block->size=1896857812 (impossibly large - indicates heap overflow)
+```
+
+**Likely Culprits (in load order):**
+1. LINEDEFS parsing - reads maplinedef_t structures, builds line_t array
+2. SIDEDEFS parsing - reads mapsidedef_t structures
+3. SEGS/NODES parsing - complex BSP tree data
+4. REJECT matrix loading - bitfield parsing
+5. BLOCKMAP loading - spatial indexing structure
+
+**Common Overflow Patterns to Check:**
+- Array bounds not validated when parsing WAD structures
+- strcpy/sprintf without length limits
+- Integer overflow in size calculations
+- Off-by-one errors in loop bounds
+
+### Audio Issues
+
+#### Symptom: Audio Crackling/Pops When Switching Menus
 - Occurs when transitioning between menu screens
 - May be related to SDL audio buffer handling
 

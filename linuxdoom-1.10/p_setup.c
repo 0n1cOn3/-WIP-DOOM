@@ -394,8 +394,19 @@ void P_LoadLineDefs (int lump)
 	ld->flags = SHORT(mld->flags);
 	ld->special = SHORT(mld->special);
 	ld->tag = SHORT(mld->tag);
-	v1 = ld->v1 = &vertexes[SHORT(mld->v1)];
-	v2 = ld->v2 = &vertexes[SHORT(mld->v2)];
+
+	// Bounds check vertex indices to prevent buffer overflow
+	int v1_idx = SHORT(mld->v1);
+	int v2_idx = SHORT(mld->v2);
+	if (v1_idx < 0 || v1_idx >= numvertexes)
+	    I_Error("P_LoadLineDefs: linedef %d has invalid v1 index %d (max %d)",
+		    i, v1_idx, numvertexes-1);
+	if (v2_idx < 0 || v2_idx >= numvertexes)
+	    I_Error("P_LoadLineDefs: linedef %d has invalid v2 index %d (max %d)",
+		    i, v2_idx, numvertexes-1);
+
+	v1 = ld->v1 = &vertexes[v1_idx];
+	v2 = ld->v2 = &vertexes[v2_idx];
 	ld->dx = v2->x - v1->x;
 	ld->dy = v2->y - v1->y;
 	
@@ -475,7 +486,13 @@ void P_LoadSideDefs (int lump)
 	sd->toptexture = R_TextureNumForName(msd->toptexture);
 	sd->bottomtexture = R_TextureNumForName(msd->bottomtexture);
 	sd->midtexture = R_TextureNumForName(msd->midtexture);
-	sd->sector = &sectors[SHORT(msd->sector)];
+
+	// Bounds check sector index to prevent buffer overflow
+	int sector_idx = SHORT(msd->sector);
+	if (sector_idx < 0 || sector_idx >= numsectors)
+	    I_Error("P_LoadSideDefs: sidedef %d has invalid sector index %d (max %d)",
+		    i, sector_idx, numsectors-1);
+	sd->sector = &sectors[sector_idx];
     }
 	
     Z_Free (data);
