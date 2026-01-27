@@ -29,6 +29,10 @@
 
 #include <stdio.h>
 
+#include "doomtype.h"
+
+void I_Error (char *error, ...);
+
 //
 // ZONE MEMORY
 // PU - purge tags.
