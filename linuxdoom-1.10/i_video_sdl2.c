@@ -34,7 +34,7 @@ static int ScreenHeight = SCREENHEIGHT;
 static int mouse_button_state = 0;
 extern boolean menuactive;
 
-int vid_window_width = 1280;
+int vid_window_width = 960;   // 4:3 aspect ratio (960x720)
 int vid_window_height = 720;
 int vid_fullscreen = 0;
 int vid_aspect = 0;        // 0 = 4:3, 1 = 16:9, 2 = stretch
