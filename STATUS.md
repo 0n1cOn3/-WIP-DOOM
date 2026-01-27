@@ -1,9 +1,9 @@
 # DOOM Modernization Project - Current Status
 
-**Last Updated:** January 27, 2026
+**Last Updated:** January 27, 2026 (Session 2)
 **Repository:** 0n1cOn3/-WIP-DOOM
 **Branch:** master
-**Last Commit:** Consolidate networking to SDL2_net as primary backend
+**Last Commit:** Fix viewport aspect ratio calculation in SDL_RenderSetLogicalSize
 
 ## Executive Summary
 
@@ -77,6 +77,8 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 - ✅ **Conditional Compilation**: No X11/SDL1 conditionals remain in codebase
 - ✅ **Window Event Handling**: SDL2 window events handled (focus, resize with automatic aspect preservation)
 - ✅ **Aspect Ratio**: Automatic 4:3 aspect ratio preservation via SDL_RenderSetLogicalSize()
+- ✅ **Adaptive Window Sizing**: Window resolution auto-detects desktop and scales appropriately (January 27, Session 2)
+- ✅ **Viewport Scaling**: Switched from manual destination rect calculation to SDL_RenderSetLogicalSize() (January 27, Session 2)
 
 ### Build Configuration
 - ✅ **X11 Dependencies**: Removed from build; only SDL2/SDL2_net linked
@@ -296,3 +298,33 @@ The modernization will be considered complete when:
 **Completeness**: Core modernization and content consolidation **complete** (~90%). Remaining work is primarily testing, rendering improvements, and optional features.
 
 **Risk Level**: Low - The SDL2 backend has been thoroughly tested during this modernization. Core functionality is stable.
+
+---
+
+## Session 2 Work (January 27, 2026)
+
+### Viewport & Window Sizing Improvements
+
+**Implemented:**
+1. **Adaptive Window Sizing** - Window dimensions now auto-detect desktop resolution and scale to 75% of available space for windowed mode
+2. **SDL_RenderSetLogicalSize Implementation** - Replaced manual destination rectangle calculation with SDL2's automatic viewport scaling
+3. **Aspect Ratio Correction** - Fixed logical size calculation:
+   - Standard (4:3): 320x240 logical resolution (matches original DOOM pixel aspect)
+   - Widescreen (16:9): 320x180 logical resolution
+   - Stretch: 320x200 logical resolution (no aspect correction)
+
+**Commits:**
+- `1879499` - Adaptive window sizing based on desktop resolution
+- `99aa521` - Viewport scaling using SDL_RenderSetLogicalSize()
+- `a6aecce` - Fixed aspect ratio in logical size calculation
+
+**Remaining Viewport Issues:**
+- Viewport displays with proper 4:3 aspect ratio but wallpaper background still takes significant screen space
+- This is expected behavior: DOOM's UI uses wallpaper as background, viewport size is determined by aspect ratio constraints
+- Further optimization would require refactoring how the UI background rendering works (lower priority)
+
+### Testing Status
+- Game loads successfully without crashes
+- Viewport renders with correct aspect ratio
+- Window resizes and adapts to different monitor resolutions
+- Can toggle fullscreen with Alt+Enter
