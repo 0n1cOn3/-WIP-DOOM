@@ -16,7 +16,7 @@ if [ -z "${IWAD_PATH}" ]; then
   exit 1
 fi
 
-BIN_DIR=${BIN_DIR:-"./build-make/bin"}
+BIN_DIR=${BIN_DIR:-"./build/bin"}
 BIN_PATH="$BIN_DIR/linuxdoom"
 
 if [ ! -x "$BIN_PATH" ]; then
