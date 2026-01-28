@@ -183,6 +183,7 @@ extern int	key_fire;
 extern int	key_use;
 extern int	key_strafe;
 extern int	key_speed;
+extern int	key_jump;
 
 extern int	mousebfire;
 extern int	mousebstrafe;
@@ -266,6 +267,7 @@ default_t       defaults[] =
     {"key_use",&key_use, DEFAULT_INT, ' ', NULL, 0, 0},
     {"key_strafe",&key_strafe, DEFAULT_INT, KEY_RALT, NULL, 0, 0},
     {"key_speed",&key_speed, DEFAULT_INT, KEY_RSHIFT, NULL, 0, 0},
+    {"key_jump",&key_jump, DEFAULT_INT, 'c', NULL, 0, 0},
 
 #endif
 
