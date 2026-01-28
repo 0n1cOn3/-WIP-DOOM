@@ -2594,6 +2594,47 @@ M_WriteText
 //
 
 //
+// M_HandleMouseMenuClick
+// Check if user clicked on a menu item and select it
+//
+static void M_HandleMouseMenuClick(int screen_x, int screen_y)
+{
+    if (!currentMenu)
+        return;
+
+    int menu_x = currentMenu->x;
+    int menu_y = currentMenu->y;
+
+    // Check if click is within the menu bounds horizontally
+    // Menu items are roughly 8 chars wide at 4 pixels per char = ~32 pixels
+    if (screen_x < menu_x - 10 || screen_x > menu_x + 160)
+        return;
+
+    // Calculate which menu item was clicked based on Y coordinate
+    // Items are spaced LINEHEIGHT (16) pixels apart
+    int relative_y = screen_y - menu_y;
+    if (relative_y < 0 || relative_y > LINEHEIGHT * currentMenu->numitems)
+        return;
+
+    int item_index = relative_y / LINEHEIGHT;
+    if (item_index >= currentMenu->numitems)
+        item_index = currentMenu->numitems - 1;
+
+    // Skip separator items (type -1)
+    while (item_index < currentMenu->numitems &&
+           currentMenu->menuitems[item_index].status == -1)
+        item_index++;
+
+    if (item_index < currentMenu->numitems)
+    {
+        itemOn = item_index;
+        // Trigger the selected item
+        if (currentMenu->menuitems[itemOn].routine)
+            currentMenu->menuitems[itemOn].routine(itemOn);
+    }
+}
+
+//
 // M_Responder
 //
 boolean M_Responder (event_t* ev)
@@ -2678,10 +2719,19 @@ boolean M_Responder (event_t* ev)
 		
 	    if (ev->data1&1)
 	    {
-		ch = KEY_ENTER;
-		mousewait = I_GetTime() + 15;
+		// Check for menu item click if we have absolute coordinates
+		if (menuactive && (ev->data4 || ev->data5))
+		{
+		    M_HandleMouseMenuClick(ev->data4, ev->data5);
+		    mousewait = I_GetTime() + 15;
+		}
+		else
+		{
+		    ch = KEY_ENTER;
+		    mousewait = I_GetTime() + 15;
+		}
 	    }
-			
+
 	    if (ev->data1&2)
 	    {
 		ch = KEY_BACKSPACE;

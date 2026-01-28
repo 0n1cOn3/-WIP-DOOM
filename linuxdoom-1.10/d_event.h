@@ -47,6 +47,8 @@ typedef struct
     int		data1;		// keys / mouse/joystick buttons
     int		data2;		// mouse/joystick x move
     int		data3;		// mouse/joystick y move
+    int		data4;		// absolute screen x (for mouse menu clicking)
+    int		data5;		// absolute screen y (for mouse menu clicking)
 } event_t;
 
  

@@ -469,12 +469,27 @@ void I_StartTic(void)
             {
                 if (menuactive)
                 {
-                    mouse_button_state = 0;
+                    // Still post mouse events for menu, but don't affect game state
+                    event_t doom_event;
+                    doom_event.type = ev_mouse;
+
+                    if (event.button.button == SDL_BUTTON_LEFT)
+                        doom_event.data1 = 1;
+                    else if (event.button.button == SDL_BUTTON_RIGHT)
+                        doom_event.data1 = 2;
+                    else
+                        doom_event.data1 = 0;
+
+                    doom_event.data2 = 0;
+                    doom_event.data3 = 0;
+                    doom_event.data4 = event.button.x;
+                    doom_event.data5 = event.button.y;
+                    D_PostEvent(&doom_event);
                     break;
                 }
                 event_t doom_event;
                 doom_event.type = ev_mouse;
-                
+
                 // Update button state - set the bit for this button
                 if (event.button.button == SDL_BUTTON_LEFT)
                     mouse_button_state |= 1;
@@ -482,10 +497,12 @@ void I_StartTic(void)
                     mouse_button_state |= 2;
                 else if (event.button.button == SDL_BUTTON_RIGHT)
                     mouse_button_state |= 4;
-                
+
                 doom_event.data1 = mouse_button_state;
                 doom_event.data2 = 0;
                 doom_event.data3 = 0;
+                doom_event.data4 = event.button.x;
+                doom_event.data5 = event.button.y;
                 D_PostEvent(&doom_event);
                 break;
             }
@@ -493,12 +510,20 @@ void I_StartTic(void)
             {
                 if (menuactive)
                 {
-                    mouse_button_state = 0;
+                    // Still post mouse events for menu
+                    event_t doom_event;
+                    doom_event.type = ev_mouse;
+                    doom_event.data1 = 0;  // No button held
+                    doom_event.data2 = 0;
+                    doom_event.data3 = 0;
+                    doom_event.data4 = event.button.x;
+                    doom_event.data5 = event.button.y;
+                    D_PostEvent(&doom_event);
                     break;
                 }
                 event_t doom_event;
                 doom_event.type = ev_mouse;
-                
+
                 // Update button state - clear the bit for this button
                 if (event.button.button == SDL_BUTTON_LEFT)
                     mouse_button_state &= ~1;
@@ -506,26 +531,25 @@ void I_StartTic(void)
                     mouse_button_state &= ~2;
                 else if (event.button.button == SDL_BUTTON_RIGHT)
                     mouse_button_state &= ~4;
-                
+
                 doom_event.data1 = mouse_button_state;
                 doom_event.data2 = 0;
                 doom_event.data3 = 0;
+                doom_event.data4 = event.button.x;
+                doom_event.data5 = event.button.y;
                 D_PostEvent(&doom_event);
                 break;
             }
             case SDL_MOUSEMOTION:
             {
-                if (menuactive)
-                {
-                    mouse_button_state = 0;
-                    break;
-                }
                 event_t doom_event;
                 doom_event.type = ev_mouse;
-                doom_event.data1 = mouse_button_state;
+                doom_event.data1 = menuactive ? 0 : mouse_button_state;  // No buttons in menu mode
                 // Scale mouse movement like X11 backend (shift left by 2)
                 doom_event.data2 = event.motion.xrel << 2;
                 doom_event.data3 = -event.motion.yrel << 2;  // Invert Y axis
+                doom_event.data4 = event.motion.x;
+                doom_event.data5 = event.motion.y;
                 D_PostEvent(&doom_event);
                 break;
             }
