@@ -2748,7 +2748,14 @@ boolean M_Responder (event_t* ev)
     if (ch == -1)
 	return false;
 
-    
+    // Global hotkey: 'H' for Help/Instructions (accessible from any menu)
+    if (ch == 'h' || ch == 'H')
+    {
+        M_StartControlPanel();
+        M_ReadThis(0);
+        return true;
+    }
+
     // Save Game string input
     if (saveStringEnter)
     {
