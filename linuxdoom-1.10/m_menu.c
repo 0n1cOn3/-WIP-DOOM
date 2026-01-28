@@ -479,6 +479,7 @@ enum
     networkopt,
     gameinst,
     autosave_opt,
+    options_back,
     opt_end
 } options_e;
 
@@ -494,7 +495,8 @@ menuitem_t OptionsMenu[]=
     {1,"",		M_OpenDisplay,'d'},
     {1,"",		M_OpenNetwork,'n'},
     {1,"",		M_ReadThis,'i'},
-    {1,"",		M_ChangeAutosave,'a'}
+    {1,"",		M_ChangeAutosave,'a'},
+    {1,"",		M_OpenMainMenu,'b'}
 };
 
 menu_t  OptionsDef =
@@ -624,6 +626,7 @@ enum
     music_vol,
     music_backend_item,
     sfx_empty2,
+    sound_back,
     sound_end
 } sound_e;
 
@@ -633,7 +636,8 @@ menuitem_t SoundMenu[]=
     {-1,"",0},
     {2,"M_MUSVOL",M_MusicVol,'m'},
     {2,"",M_MusicBackend,'b'},
-    {-1,"",0}
+    {-1,"",0},
+    {1,"",M_Options,'b'}
 };
 
 menu_t  SoundDef =
@@ -1027,6 +1031,8 @@ void M_DrawSound(void)
 		"MUSIC BACKEND");
     M_WriteText(SoundDef.x + 120, SoundDef.y + LINEHEIGHT*music_backend_item,
 		(char *)backend_name);
+
+    M_WriteText(SoundDef.x, SoundDef.y + LINEHEIGHT*sound_back, "BACK");
 }
 
 void M_Sound(int choice)
@@ -1123,28 +1129,26 @@ void M_DrawPauseMenu(void)
     int health = player->health;
     int armor = player->armorpoints;
 
-    // Title
-    int title_x = 160 - M_StringWidth("PAUSED")/2;
-    M_WriteText(title_x, 10, "PAUSED");
+    // Pause menu positioned at standard x=60, y=40 (top-left like normal menus)
+    int menu_x = 60;
+    int menu_y = 40;
 
-    // Status bar - compact format
-    int status_y = 25;
-    sprintf(status, "HEALTH: %d%%  ARMOR: %d%%",
+    // Draw title
+    M_WriteText(menu_x, menu_y, "PAUSED");
+
+    // Status bar on next line
+    sprintf(status, "HEALTH:%d%%  ARMOR:%d%%",
             health > 100 ? 100 : health,
             armor > 100 ? 100 : armor);
-    M_WriteText(60, status_y, status);
+    M_WriteText(menu_x, menu_y + 10, status);
 
-    // Menu separator line (visual spacer)
-    // Draw a line of dashes using text
-    M_WriteText(PauseDef.x, PauseDef.y - 5, "-------------------");
-
-    // Draw menu items with better spacing
-    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_status, "VIEW STATUS");
-    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_save, "SAVE GAME");
-    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_load, "LOAD GAME");
-    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_options, "OPTIONS");
-    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_quit, "QUIT GAME");
-    M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_back, "RESUME GAME");
+    // Draw menu items with standard spacing
+    M_WriteText(menu_x, menu_y + 25, "VIEW STATUS");
+    M_WriteText(menu_x, menu_y + 35, "SAVE GAME");
+    M_WriteText(menu_x, menu_y + 45, "LOAD GAME");
+    M_WriteText(menu_x, menu_y + 55, "OPTIONS");
+    M_WriteText(menu_x, menu_y + 65, "QUIT GAME");
+    M_WriteText(menu_x, menu_y + 75, "RESUME GAME");
 }
 
 void M_ViewStatus(int choice)
@@ -1321,6 +1325,8 @@ void M_DrawOptions(void)
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*autosave_opt, "AUTOSAVE");
     sprintf(option_text, "%s", autosave_enable ? "ON" : "OFF");
     M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT*autosave_opt, option_text);
+
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*options_back, "BACK");
 }
 
 void M_DrawDisplay(void)
