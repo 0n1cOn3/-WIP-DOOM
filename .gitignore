@@ -47,3 +47,11 @@ compile_commands.json
 build-make/
 _codeql_build_dir/
 _codeql_detected_source_root
+doomsav0.dsg
+doomsav*.dsg
+doomsav*.sg?
+DEBUGGING.md
+legacy/
+CVS/
+trees/
+tools/gen_helpfont_data.py

@@ -5,9 +5,9 @@ Modernized, single-target build of the original Linux DOOM 1.10 sources, plus on
 If you remember the 90s Linux port: this keeps the gameplay, but drops the period-correct plumbing. No X11 renderer fork, no external `sndserver`, no BSD sockets sprawl. It is DOOM, but built and run like a modern Linux game.
 
 ## Features
-- SDL2 renderer with automatic 4:3 logical size, optional `-widescreen` or `-stretch` scaling, Alt+Enter fullscreen toggle.
+- SDL2 renderer with logical sizing for aspect preservation (4:3 default, `-widescreen`, `-stretch`, or `-aspect 4:3|16:9|stretch`) and Alt+Enter fullscreen toggle.
 - SDL2 audio backend (11025 Hz, 16-bit stereo) with in-process mixer.
-- Music backends: ADLMIDI (OPL3) + OPNMIDI (OPN2), fetched at configure time.
+- Music backends: ADLMIDI (OPL3) + OPNMIDI (OPN2), fetched at configure time; ALSA sequencer fallback when available.
 - Multiplayer: in-game Host/Join menu with lobby roster, LAN discovery, and direct connect (host[:port] + IPv6 `[addr]:port`).
 - Secure net transport: all game packets carry a BLAKE2s MAC keyed by a per-session 128-bit key; content hashing gates mismatched WAD sets.
 - Single `linuxdoom` target built by CMake; no legacy sndserver, SDL1, or X11 backends.
@@ -49,9 +49,14 @@ DOOMWADDIR=/path/to/wads ./build/bin/linuxdoom
 Convenience env vars: `IWAD_PATH`, `PWAD_PATH` for the wrapper.
 
 Common flags:
-- `-widescreen` (16:9 logical size), `-stretch` (fill without preserving aspect)
+- `-aspect 4:3|16:9|stretch` (explicit aspect selection)
+- `-widescreen` (alias for 16:9), `-stretch` (fill without preserving aspect)
 - `-fullscreen` / `-windowed`
 - Alt+Enter toggles fullscreen at runtime.
+- Music backend selection:
+  - `-music_backend adlmidi|opnmidi|alsa|off`
+  - `-midi adlmidi|opnmidi|alsa|off` (alias)
+  - `-nomusic` (disable music)
 - Multiplayer:
   - In-game: Main Menu -> Multiplayer (Host/Join/LAN/Direct Connect)
   - CLI bootstrap:
@@ -60,6 +65,12 @@ Common flags:
   - Optional: `-player <name>` to set your lobby roster name.
 
 Saves/config: by default `~/.doomrc` and `.dsg` save files in the working directory.
+
+## Development workflow
+- Use the `enhanced` branch for active work; keep `vanilla` as a clean baseline.
+- Prefer worktrees (`git worktree`) for parallel checkouts. Use separate build dirs per worktree to avoid CMake cache conflicts (e.g. `build-enhanced/`).
+- After code changes, re-run the build (`cmake -S . -B build` then `cmake --build build`).
+- There are no automated tests; sanity-check with `build/bin/net_harness` and a quick run of `linuxdoom`.
 
 ## Project status
 Core SDL2 modernization is complete. See `STATUS.md` for current state and `TODO.md` for the roadmap. `AGENTS.md` documents repo-specific guidance.

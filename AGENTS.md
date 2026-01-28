@@ -1,9 +1,9 @@
 # Repository guidance
 
-This codebase contains the legacy Linux Doom sources with a partially modernized build. Use this file for any future edits in the repo.
+This codebase contains the legacy Linux Doom sources modernized for SDL2 with additional enhancements. Use this file for any future edits in the repo.
 
 ## Coding and build expectations
-- The codebase is now SDL2-only: video, audio, input, and networking all use SDL2 (or SDL2_net for networking).
+- The codebase is SDL2-only: video, audio, input, and networking all use SDL2 (or SDL2_net for networking).
 - The top-level CMake build is the source of truth. Configure with `cmake -S . -B build` and build with `cmake --build build`.
   - Network backend defaults to SDL2_net with automatic stub fallback if system library is unavailable.
   - Music backends are fetched via CMake `FetchContent` (libADLMIDI/libOPNMIDI); a C++ compiler is required.
@@ -16,13 +16,13 @@ This codebase contains the legacy Linux Doom sources with a partially modernized
 - ✅ **SDL2 Audio**: `linuxdoom-1.10/i_sound.c` uses SDL2 audio exclusively. Legacy sndserver, OSS/ALSA removed.
 - ✅ **Music Playback**: ADLMIDI (OPL3) + OPNMIDI (OPN2) with ALSA sequencer fallback.
 - ✅ **SDL2_net Networking**: `linuxdoom-1.10/i_net.c` uses SDL2_net exclusively. BSD sockets code removed. Auto-injects SDL_net stub when system library unavailable.
-- ✅ **Build System**: CMake builds a single `linuxdoom` target. Automatic 4:3 aspect ratio preservation via SDL_RenderSetLogicalSize().
+- ✅ **Build System**: CMake builds a single `linuxdoom` target. Aspect modes available via `-aspect`, `-widescreen`, `-stretch`.
 
 ## Suggested next steps (Core SDL2 Modernization & Content Consolidation Complete)
 The foundational SDL2 modernization and content consolidation are complete. Future work should focus on:
 - **Testing**: Verify multiplayer networking, save/load/demo playback, and gameplay across different WADs
 - **Rendering**: Fix aspect handling in rendering modules, audit sprite/patch scaling for resolution independence
-- **Polish**: Add optional aspect ratio mode selection (4:3, widescreen, stretched) via command-line flags
+- **Polish**: Add an in-menu aspect ratio toggle (CLI flags already exist)
 - **Advanced Graphics**: Consider optional widescreen support, HUD scaling for modern resolutions (future enhancement)
 
 ## Outstanding work items
@@ -33,7 +33,7 @@ See `TODO.md` for the complete modernization checklist. Below are the remaining 
 - ✅ SDL2 audio backend (sndserver removed, 16-bit stereo @ 11025 Hz)
 - ✅ SDL2_net networking (BSD sockets removed, IPv6 support via modern APIs)
 - ✅ CMake simplified (single target, no NETWORK_BACKEND option)
-- ✅ 4:3 aspect ratio preservation via SDL_RenderSetLogicalSize()
+- ✅ Aspect modes via CLI (`-aspect`, `-widescreen`, `-stretch`)
 - ✅ Game version capability system (g_version.c/h) with centralized metadata and queries
 - ✅ Consolidated duplicate sky texture logic in g_game.c
 - ✅ Documentation updated (BUILDING.md, README.TXT, STATUS.md, TODO.md, AGENTS.md)
@@ -44,7 +44,7 @@ See `TODO.md` for the complete modernization checklist. Below are the remaining 
 - Content gates (Deferred): Normalize WAD lump fallbacks in w_wad.c/p_setup.c, update version-locked UI strings (existing logic already acceptable)
 
 ### Future Enhancements (Lower Priority)
-- Add optional aspect ratio modes (4:3, widescreen, stretched) via command-line flags
+- Add optional in-menu aspect ratio modes (4:3, widescreen, stretched)
 - Evaluate resolution independence for sprites, patches, HUD (currently fixed at 320x200 logical resolution)
 - Consider advanced graphics features (widescreen rendering, HUD scaling for modern displays)
 - Add Vulkan renderer with OpenGL fallback

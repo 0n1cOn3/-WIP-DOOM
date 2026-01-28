@@ -3,11 +3,11 @@
 Modernized, single-target build of the original Linux DOOM 1.10 sources. Video, audio, input, and networking run on SDL2 and SDL2_net; music playback ships with bundled libADLMIDI/libOPNMIDI via CMake FetchContent. The top-level CMakeLists.txt is the source of truth.
 
 ## Features
-- SDL2 renderer with automatic 4:3 logical size, optional `-widescreen` or `-stretch` scaling, Alt+Enter fullscreen toggle.
+- SDL2 renderer with logical sizing for aspect preservation (4:3 default, `-widescreen`, `-stretch`, or `-aspect 4:3|16:9|stretch`) and Alt+Enter fullscreen toggle.
 - SDL2 audio backend (11025 Hz, 16-bit stereo) with in-process mixer.
 - SDL2_net multiplayer with IPv6 support and an auto-injected compatibility stub when SDL2_net is missing.
 - Built-in BLAKE2s MAC on game packets: host generates a 128-bit session key; all net traffic is authenticated.
-- ADLMIDI (OPL3) and OPNMIDI (OPN2) music backends fetched at configure time.
+- ADLMIDI (OPL3) and OPNMIDI (OPN2) music backends fetched at configure time (ALSA sequencer fallback when available).
 - Single `linuxdoom` target built by CMake; no legacy sndserver or X11 backends.
 
 ## Requirements
@@ -33,15 +33,17 @@ DOOMWADDIR=/path/to/wads ./build/bin/linuxdoom
 Convenience env vars: `IWAD_PATH`, `PWAD_PATH` for the wrapper.
 
 Common flags:
-- `-widescreen` (16:9 logical size), `-stretch` (fill without preserving aspect)
+- `-aspect 4:3|16:9|stretch`
+- `-widescreen` (alias for 16:9), `-stretch` (fill without preserving aspect)
 - `-fullscreen` / `-windowed`
-- Alt+Enter toggles fullscreen at runtime.
-- Multiplayer bootstrap:
-  - Host: `-host N` (optionally `-port P`)
-  - Join: `-connect host[:port]`
-  - All packets are MACed with BLAKE2s using a session key sent during JOIN_ACK.
+- `-music_backend adlmidi|opnmidi|alsa|off`, `-midi ...`, `-nomusic`
+- Multiplayer: `-host N` / `-connect host[:port]`
+- Optional: `-player <name>` to set your lobby roster name.
 
 Saves/config: by default `~/.doomrc` and `.dsg` save files in the working directory.
+
+## Development notes
+Use the `enhanced` branch for active work, keep `vanilla` as a clean baseline. If you use worktrees, keep separate build directories (e.g. `build-enhanced/`) to avoid CMake cache conflicts. There are no automated tests; sanity-check with `build/bin/net_harness` and a quick run of `linuxdoom`.
 
 ## Project status
 Core SDL2 modernization is complete. See `STATUS.md` for current state and `TODO.md` for the roadmap. `AGENTS.md` documents repo-specific guidance.

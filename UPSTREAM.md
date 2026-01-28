@@ -10,8 +10,7 @@ This keeps the repository history simple while allowing you to work on both tree
    - Import or reset it to the unmodified Linux DOOM 1.10 baseline.
    - Keep it “no enhancements” (only minimal build fixes if you must, and document them).
 
-2. Keep the enhanced development on an **enhanced** branch (recommended name: `enhanced`).
-   - If you currently develop on `master`, you can keep doing so, or rename/split it later.
+2. Keep enhanced development on an **enhanced** branch (recommended name: `enhanced`).
 
 3. Check out both at once:
 ```sh
@@ -24,10 +23,8 @@ Suggested initialization (one-time):
 # Use 6aedbff ("Not wanted stuff removed") as the last known "vanilla" cut point.
 git branch vanilla 6aedbff
 
-# Make `enhanced` your main development branch (either by branching from current HEAD,
-# or by renaming your current branch).
+# Make `enhanced` your main development branch.
 git branch enhanced HEAD
-# or: git branch -m master enhanced
 ```
 
 Suggested policy:
