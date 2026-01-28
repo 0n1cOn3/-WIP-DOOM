@@ -364,7 +364,7 @@ menu_t  PauseDef =
     &MainDef,
     PauseMenu,
     M_DrawPauseMenu,
-    60,50,
+    80,70,
     0
 };
 
@@ -1118,24 +1118,27 @@ void M_OpenMainMenu(int choice)
 
 void M_DrawPauseMenu(void)
 {
-    int title_x = 160 - M_StringWidth("PAUSE MENU")/2;
-    M_WriteText(title_x, 15, "PAUSE MENU");
-
-    // Display player status
-    M_WriteText(PauseDef.x, PauseDef.y - 30, "STATUS");
-
     char status[64];
     player_t *player = &players[consoleplayer];
     int health = player->health;
     int armor = player->armorpoints;
 
-    sprintf(status, "HEALTH: %d%%", health > 100 ? 100 : health);
-    M_WriteText(PauseDef.x + 80, PauseDef.y - 30, status);
+    // Title
+    int title_x = 160 - M_StringWidth("PAUSED")/2;
+    M_WriteText(title_x, 10, "PAUSED");
 
-    sprintf(status, "ARMOR: %d%%", armor > 100 ? 100 : armor);
-    M_WriteText(PauseDef.x + 80, PauseDef.y - 20, status);
+    // Status bar - compact format
+    int status_y = 25;
+    sprintf(status, "HEALTH: %d%%  ARMOR: %d%%",
+            health > 100 ? 100 : health,
+            armor > 100 ? 100 : armor);
+    M_WriteText(60, status_y, status);
 
-    // Draw menu items
+    // Menu separator line (visual spacer)
+    // Draw a line of dashes using text
+    M_WriteText(PauseDef.x, PauseDef.y - 5, "-------------------");
+
+    // Draw menu items with better spacing
     M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_status, "VIEW STATUS");
     M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_save, "SAVE GAME");
     M_WriteText(PauseDef.x, PauseDef.y + LINEHEIGHT*pause_load, "LOAD GAME");
