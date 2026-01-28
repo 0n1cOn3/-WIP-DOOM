@@ -1,9 +1,9 @@
-# DOOM SDL2 (GPL-2.0-only)
+# DOOM SDL2 (GPL-2.0-only) — Vanilla 1.10 Gameplay
 
-Modernized, single-target build of the original Linux DOOM 1.10 sources. Video, audio, input, and networking run on SDL2 and SDL2_net; music playback ships with bundled libADLMIDI/libOPNMIDI via CMake FetchContent. The top-level CMakeLists.txt is the source of truth.
+Modernized, single-target build of the original Linux DOOM 1.10 sources, while preserving the **original gameplay/feature set** (no enhancements). Video, audio, input, and networking run on SDL2 and SDL2_net; music playback ships with bundled libADLMIDI/libOPNMIDI via CMake FetchContent. The top-level CMakeLists.txt is the source of truth.
 
 ## Features
-- SDL2 renderer with automatic 4:3 logical size, optional `-widescreen` or `-stretch` scaling, Alt+Enter fullscreen toggle.
+- SDL2 renderer with automatic 4:3 logical size (no widescreen/stretch modes).
 - SDL2 audio backend (11025 Hz, 16-bit stereo) with in-process mixer.
 - SDL2_net multiplayer with IPv6 support and an auto-injected compatibility stub when SDL2_net is missing.
 - ADLMIDI (OPL3) and OPNMIDI (OPN2) music backends fetched at configure time.
@@ -32,11 +32,13 @@ DOOMWADDIR=/path/to/wads ./build/bin/linuxdoom
 Convenience env vars: `IWAD_PATH`, `PWAD_PATH` for the wrapper.
 
 Common flags:
-- `-widescreen` (16:9 logical size), `-stretch` (fill without preserving aspect)
 - `-fullscreen` / `-windowed`
-- Alt+Enter toggles fullscreen at runtime.
 
 Saves/config: by default `~/.doomrc` and `.dsg` save files in the working directory.
+
+## Vanilla Scope (What This Tree Intentionally Does NOT Add)
+- No gameplay/UI/network enhancements beyond the original Linux 1.10 port.
+- No multiplayer lobby UI, LAN roster/discovery, or secure packet MACs.
 
 ## Project status
 Core SDL2 modernization is complete. See `STATUS.md` for current state and `TODO.md` for the roadmap. `AGENTS.md` documents repo-specific guidance.
