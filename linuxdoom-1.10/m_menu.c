@@ -1029,7 +1029,7 @@ void M_DrawSound(void)
 
     M_WriteText(SoundDef.x, SoundDef.y + LINEHEIGHT*music_backend_item,
 		"MUSIC BACKEND");
-    M_WriteText(SoundDef.x + 120, SoundDef.y + LINEHEIGHT*music_backend_item,
+    M_WriteText(SoundDef.x + 160, SoundDef.y + LINEHEIGHT*music_backend_item,
 		(char *)backend_name);
 
     M_WriteText(SoundDef.x, SoundDef.y + LINEHEIGHT*sound_back, "BACK");
@@ -1307,11 +1307,11 @@ void M_DrawOptions(void)
 
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*messages, "MESSAGES");
     sprintf(option_text, "%s", showMessages ? "ON" : "OFF");
-    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT*messages, option_text);
+    M_WriteText(OptionsDef.x + 160, OptionsDef.y + LINEHEIGHT*messages, option_text);
 
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*detail, "DETAIL");
     sprintf(option_text, "%s", detailLevel ? "LOW" : "HIGH");
-    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT*detail, option_text);
+    M_WriteText(OptionsDef.x + 160, OptionsDef.y + LINEHEIGHT*detail, option_text);
 
     M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(mousesens+1),
 		 10,mouseSensitivity);
@@ -1324,7 +1324,7 @@ void M_DrawOptions(void)
 
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*autosave_opt, "AUTOSAVE");
     sprintf(option_text, "%s", autosave_enable ? "ON" : "OFF");
-    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT*autosave_opt, option_text);
+    M_WriteText(OptionsDef.x + 160, OptionsDef.y + LINEHEIGHT*autosave_opt, option_text);
 
     M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*options_back, "BACK");
 }
@@ -1332,7 +1332,7 @@ void M_DrawOptions(void)
 void M_DrawDisplay(void)
 {
     char value[32];
-    int value_x = DisplayDef.x + 140;
+    int value_x = DisplayDef.x + 160;
     int title_x = 160 - M_StringWidth("DISPLAY SETTINGS")/2;
     int desktop_w = 0;
     int desktop_h = 0;
@@ -1365,7 +1365,7 @@ void M_DrawDisplay(void)
 void M_DrawNetwork(void)
 {
     char value[32];
-    int value_x = NetworkDef.x + 140;
+    int value_x = NetworkDef.x + 160;
     int title_x = 160 - M_StringWidth("NETWORK SETTINGS")/2;
 
     M_WriteText(title_x, 15, "NETWORK SETTINGS");
@@ -1731,7 +1731,7 @@ void M_DrawMultiplayer(void)
 void M_DrawHostSetup(void)
 {
     char value[32];
-    int value_x = HostDef.x + 140;
+    int value_x = HostDef.x + 160;
     int title_x = 160 - M_StringWidth("HOST GAME")/2;
     int pc = lobby_state.player_count ? lobby_state.player_count : 2;
 
