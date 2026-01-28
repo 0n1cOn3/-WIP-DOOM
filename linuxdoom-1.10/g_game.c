@@ -188,6 +188,13 @@ int             turnheld;				// for accelerative turning
 boolean		mousearray[4]; 
 boolean*	mousebuttons = &mousearray[1];		// allow [-1]
 
+static boolean MouseButtonState(int button)
+{
+    if (button < -1 || button > 2)
+        return false;
+    return mousebuttons[button];
+}
+
 // mouse values are used once 
 int             mousex;
 int		mousey;         
@@ -255,7 +262,7 @@ void G_BuildTiccmd (ticcmd_t* cmd)
 	consistancy[consoleplayer][maketic%BACKUPTICS]; 
 
  
-    strafe = gamekeydown[key_strafe] || mousebuttons[mousebstrafe] 
+    strafe = gamekeydown[key_strafe] || MouseButtonState(mousebstrafe) 
 	|| joybuttons[joybstrafe]; 
     speed = gamekeydown[key_speed] || joybuttons[joybspeed];
  
@@ -329,11 +336,11 @@ void G_BuildTiccmd (ticcmd_t* cmd)
     // buttons
     cmd->chatchar = HU_dequeueChatChar(); 
  
-    if (gamekeydown[key_fire] || mousebuttons[mousebfire] 
+    if (gamekeydown[key_fire] || MouseButtonState(mousebfire) 
 	|| joybuttons[joybfire]) 
 	cmd->buttons |= BT_ATTACK; 
  
-    if (gamekeydown[key_use] || joybuttons[joybuse] || mousebuttons[mousebuse])
+    if ((key_use && gamekeydown[key_use]) || joybuttons[joybuse] || MouseButtonState(mousebuse))
     {
 	cmd->buttons |= BT_USE;
 	// clear double clicks if hit use button
@@ -353,36 +360,39 @@ void G_BuildTiccmd (ticcmd_t* cmd)
 	}
     
     // mouse
-    if (mousebuttons[mousebforward]) 
+    if (MouseButtonState(mousebforward)) 
 	forward += forwardmove[speed];
     
     // forward double click
-    if (mousebuttons[mousebforward] != dclickstate && dclicktime > 1 ) 
-    { 
-	dclickstate = mousebuttons[mousebforward]; 
-	if (dclickstate) 
-	    dclicks++; 
-	if (dclicks == 2) 
+    {
+	int forward_state = MouseButtonState(mousebforward);
+	if (forward_state != dclickstate && dclicktime > 1 ) 
 	{ 
-	    cmd->buttons |= BT_USE; 
-	    dclicks = 0; 
+	    dclickstate = forward_state; 
+	    if (dclickstate) 
+		dclicks++; 
+	    if (dclicks == 2) 
+	    { 
+		cmd->buttons |= BT_USE; 
+		dclicks = 0; 
+	    } 
+	    else 
+		dclicktime = 0; 
 	} 
 	else 
-	    dclicktime = 0; 
-    } 
-    else 
-    { 
+	{ 
 	dclicktime += ticdup; 
 	if (dclicktime > 20) 
 	{ 
 	    dclicks = 0; 
 	    dclickstate = 0; 
 	} 
+	}
     }
     
     // strafe double click
     bstrafe =
-	mousebuttons[mousebstrafe] 
+	MouseButtonState(mousebstrafe) 
 	|| joybuttons[joybstrafe]; 
     if (bstrafe != dclickstate2 && dclicktime2 > 1 ) 
     { 

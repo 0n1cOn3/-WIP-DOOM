@@ -40,6 +40,26 @@ int vid_fullscreen = 0;
 int vid_aspect = 0;        // 0 = 4:3, 1 = 16:9, 2 = stretch
 int vid_integer_scale = 1;
 
+static int UseIntegerScale(void)
+{
+    // Integer scale only applies cleanly in 4:3 mode.
+    return (vid_integer_scale && vid_aspect == 0);
+}
+
+static int ParseAspectArg(const char *value)
+{
+    if (!value)
+        return -1;
+    if (!strcasecmp(value, "4:3") || !strcasecmp(value, "4x3") || !strcasecmp(value, "43"))
+        return 0;
+    if (!strcasecmp(value, "16:9") || !strcasecmp(value, "16x9") || !strcasecmp(value, "169") ||
+        !strcasecmp(value, "widescreen"))
+        return 1;
+    if (!strcasecmp(value, "stretch") || !strcasecmp(value, "fill"))
+        return 2;
+    return -1;
+}
+
 static void I_UpdateRendererLogicalSize(void)
 {
     if (!renderer)
@@ -54,21 +74,20 @@ static void I_UpdateRendererLogicalSize(void)
     }
 
     // 4:3 mode applies a 1.2x vertical stretch (320x200 -> 320x240) to emulate
-    // DOOM's original pixel aspect. 16:9 uses a 320x180 logical space.
+    // DOOM's original pixel aspect. 16:9 uses full-height scaling (320x200)
+    // so the HUD scales with window height; stretch mode fills the window.
     {
         int logical_w = ScreenWidth;
         int logical_h = ScreenHeight;
 
-        if (vid_aspect == 1)
-            logical_h = (int)lroundf((float)ScreenWidth * 9.0f / 16.0f);
-        else
+        if (vid_aspect == 0)
             logical_h = (int)lroundf((float)ScreenHeight * 6.0f / 5.0f);
 
         if (logical_h <= 0)
             logical_h = ScreenHeight;
 
         SDL_RenderSetLogicalSize(renderer, logical_w, logical_h);
-        SDL_RenderSetIntegerScale(renderer, vid_integer_scale ? SDL_TRUE : SDL_FALSE);
+        SDL_RenderSetIntegerScale(renderer, UseIntegerScale() ? SDL_TRUE : SDL_FALSE);
     }
 }
 
@@ -212,10 +231,19 @@ void I_ShutdownGraphics(void)
 
 void I_InitGraphics(void)
 {
+    int p;
+
     if (M_CheckParm("-widescreen"))
         vid_aspect = 1;
     if (M_CheckParm("-stretch"))
         vid_aspect = 2;
+    p = M_CheckParm("-aspect");
+    if (p && p < myargc - 1)
+    {
+        int parsed = ParseAspectArg(myargv[p + 1]);
+        if (parsed >= 0)
+            vid_aspect = parsed;
+    }
     if (M_CheckParm("-fullscreen"))
         vid_fullscreen = 1;
     if (M_CheckParm("-windowed"))

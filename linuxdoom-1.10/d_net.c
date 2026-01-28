@@ -27,6 +27,7 @@ static const char rcsid[] = "$Id: d_net.c,v 1.3 1997/02/03 22:01:47 b1 Exp $";
 
 
 #include <stdint.h>
+#include <stddef.h>
 #include <string.h>
 
 #include <SDL_net.h>
@@ -99,7 +100,10 @@ doomdata_t	reboundstore;
 //
 int NetbufferSize (void)
 {
-    return (int)&(((doomdata_t *)0)->cmds[netbuffer->numtics]); 
+    size_t base = offsetof(doomdata_t, cmds);
+    size_t size = base + (size_t)netbuffer->numtics * sizeof(ticcmd_t);
+
+    return (int)size;
 }
 
 //
@@ -109,8 +113,8 @@ unsigned NetbufferChecksum (void)
 {
     unsigned            c;
     int                 i;
-    int                 byteLength;
-    int                 aligned;
+    size_t              byteLength;
+    size_t              aligned;
     doomdata_t          wire;
     const byte         *payload;
 
@@ -118,19 +122,19 @@ unsigned NetbufferChecksum (void)
 
     I_NetPackBuffer(netbuffer, &wire);
 
-    byteLength = NetbufferSize () - (int)&(((doomdata_t *)0)->retransmitfrom);
+    byteLength = (size_t)NetbufferSize() - offsetof(doomdata_t, retransmitfrom);
     payload = (const byte *)&wire.retransmitfrom;
     aligned = byteLength / 4;
 
-    for (i=0 ; i<aligned ; i++)
+    for (i=0 ; (size_t)i<aligned ; i++)
         c += ReadNetUint32(payload + i * 4) * (i+1);
 
     if (byteLength % 4)
     {
         byte tail[4] = {0};
-        int offset = aligned * 4;
+        size_t offset = aligned * 4;
         memcpy(tail, payload + offset, byteLength % 4);
-        c += ReadNetUint32(tail) * (aligned + 1);
+        c += ReadNetUint32(tail) * ((unsigned)aligned + 1);
     }
 
     return c & NCMD_CHECKSUM;

@@ -265,10 +265,10 @@ default_t       defaults[] =
     {"key_straferight",&key_straferight, DEFAULT_INT, '.', NULL, 0, 0},
 
     {"key_fire",&key_fire, DEFAULT_INT, KEY_RCTRL, NULL, 0, 0},
-    {"key_use",&key_use, DEFAULT_INT, ' ', NULL, 0, 0},
+    {"key_use",&key_use, DEFAULT_INT, 0, NULL, 0, 0},
     {"key_strafe",&key_strafe, DEFAULT_INT, KEY_RALT, NULL, 0, 0},
     {"key_speed",&key_speed, DEFAULT_INT, KEY_RSHIFT, NULL, 0, 0},
-    {"key_jump",&key_jump, DEFAULT_INT, 'c', NULL, 0, 0},
+    {"key_jump",&key_jump, DEFAULT_INT, ' ', NULL, 0, 0},
 
 #endif
 
@@ -280,7 +280,7 @@ default_t       defaults[] =
     {"use_mouse",&usemouse, DEFAULT_INT, 1, NULL, 0, 0},
     {"mouseb_fire",&mousebfire, DEFAULT_INT, 0, NULL, 0, 0},
     {"mouseb_strafe",&mousebstrafe, DEFAULT_INT, 1, NULL, 0, 0},
-    {"mouseb_forward",&mousebforward, DEFAULT_INT, 1, NULL, 0, 0},
+    {"mouseb_forward",&mousebforward, DEFAULT_INT, -1, NULL, 0, 0},
     {"mouseb_use",&mousebuse, DEFAULT_INT, 2, NULL, 0, 0},
 
     {"use_joystick",&usejoystick, DEFAULT_INT, 0, NULL, 0, 0},

@@ -49,6 +49,7 @@
 #include "w_wad.h"
 #include "sounds.h"
 #include "doomstat.h"
+#include "m_argv.h"
 
 // Audio parameters
 // ===================================================================
@@ -187,13 +188,57 @@ static int MusicBackendAvailable(int backend)
 #else
             return 0;
 #endif
+        case 3:
+            return 1;
         default:
             return 0;
     }
 }
 
+static int ParseMusicBackendArg(const char *value, int *out_backend)
+{
+    if (!value || !out_backend)
+        return 0;
+
+    if (!strcasecmp(value, "adlmidi") || !strcasecmp(value, "adl") || !strcasecmp(value, "opl"))
+    {
+        *out_backend = 0;
+        return 1;
+    }
+    if (!strcasecmp(value, "opnmidi") || !strcasecmp(value, "opn") || !strcasecmp(value, "opn2"))
+    {
+        *out_backend = 1;
+        return 1;
+    }
+    if (!strcasecmp(value, "alsa") || !strcasecmp(value, "seq") || !strcasecmp(value, "alsa_seq"))
+    {
+        *out_backend = 2;
+        return 1;
+    }
+    if (!strcasecmp(value, "off") || !strcasecmp(value, "none") || !strcasecmp(value, "disabled"))
+    {
+        *out_backend = 3;
+        return 1;
+    }
+
+    if (value[0] >= '0' && value[0] <= '9')
+    {
+        int v = atoi(value);
+        if (v >= 0 && v <= 3)
+        {
+            *out_backend = v;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static int MusicBackendSelect(int requested)
 {
+    if (requested == 3)
+        return 3;
+
     int order[3] = { requested, 0, 1 };
     int i;
 
@@ -1135,6 +1180,19 @@ static void AlsaStopThread(void)
 //
 void I_InitMusic(void)
 {
+    int p;
+
+    if (M_CheckParm("-nomusic") || M_CheckParm("-musicoff"))
+        music_backend = 3;
+
+    p = M_CheckParm("-music_backend");
+    if (p && p < myargc - 1)
+        ParseMusicBackendArg(myargv[p + 1], &music_backend);
+
+    p = M_CheckParm("-midi");
+    if (p && p < myargc - 1)
+        ParseMusicBackendArg(myargv[p + 1], &music_backend);
+
     LockAudioDevice();
     music_backend_active = MusicBackendSelect(music_backend);
     music_paused = 0;
@@ -1142,6 +1200,13 @@ void I_InitMusic(void)
     music_loaded = 0;
 
     fprintf(stderr, "I_InitMusic: requested backend %d\n", music_backend);
+
+    if (music_backend_active == 3)
+    {
+        fprintf(stderr, "I_InitMusic: music disabled\n");
+        UnlockAudioDevice();
+        return;
+    }
 
 #ifdef HAVE_ADLMIDI
     if (music_backend_active == 0)
@@ -1345,6 +1410,11 @@ void I_UnRegisterSong(int handle)
 int I_RegisterSong(void* data, int length)
 {
     LockAudioDevice();
+    if (music_backend_active == 3)
+    {
+        UnlockAudioDevice();
+        return 0;
+    }
     if (!data || length <= 0)
     {
         fprintf(stderr, "I_RegisterSong: invalid data (%p) length %d\n", data, length);

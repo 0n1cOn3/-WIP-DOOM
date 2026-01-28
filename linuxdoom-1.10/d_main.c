@@ -34,6 +34,7 @@ static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #ifdef NORMALUNIX
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1281,7 +1282,11 @@ void D_DoomMain (void)
 	// for statistics driver
 	extern  void*	statcopy;                            
 
-	statcopy = (void*)atoi(myargv[p+1]);
+	{
+	    char *endptr = NULL;
+	    uintptr_t statcopy_addr = (uintptr_t)strtoull(myargv[p+1], &endptr, 0);
+	    statcopy = (void *)statcopy_addr;
+	}
 	printf ("External statistics registered.\n");
     }
     
