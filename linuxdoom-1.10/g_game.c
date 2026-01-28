@@ -158,9 +158,10 @@ int		key_strafe;
 int		key_speed;
 int		key_jump; 
  
-int             mousebfire; 
-int             mousebstrafe; 
-int             mousebforward; 
+int             mousebfire;
+int             mousebstrafe;
+int             mousebforward;
+int             mousebuse; 
  
 int             joybfire; 
 int             joybstrafe; 
@@ -332,7 +333,7 @@ void G_BuildTiccmd (ticcmd_t* cmd)
 	|| joybuttons[joybfire]) 
 	cmd->buttons |= BT_ATTACK; 
  
-    if (gamekeydown[key_use] || joybuttons[joybuse] )
+    if (gamekeydown[key_use] || joybuttons[joybuse] || mousebuttons[mousebuse])
     {
 	cmd->buttons |= BT_USE;
 	// clear double clicks if hit use button
