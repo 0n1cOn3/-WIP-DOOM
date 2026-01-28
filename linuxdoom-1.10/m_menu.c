@@ -2749,7 +2749,8 @@ boolean M_Responder (event_t* ev)
 	return false;
 
     // Global hotkey: 'H' for Help/Instructions (accessible from any menu)
-    if (ch == 'h' || ch == 'H')
+    // Convert lowercase to uppercase for comparison
+    if (toupper(ch) == 'H')
     {
         M_StartControlPanel();
         M_ReadThis(0);
