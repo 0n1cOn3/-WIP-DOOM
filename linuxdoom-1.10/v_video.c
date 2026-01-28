@@ -219,14 +219,9 @@ V_DrawPatch
     y -= SHORT(patch->topoffset);
     x -= SHORT(patch->leftoffset);
 #ifdef RANGECHECK
-    // Allow small overflow for status bar patches (bottom 40 pixels)
-    // Status bar patches may slightly exceed screen height due to aspect ratio adjustments
-    int max_y_overflow = (y >= SCREENHEIGHT - 40) ? 4 : 0;
-
     if (x<0
 	||x+SHORT(patch->width) >SCREENWIDTH
 	|| y<0
-	|| y+SHORT(patch->height)>SCREENHEIGHT + max_y_overflow
 	|| (unsigned)scrn>4)
     {
       fprintf( stderr, "Patch at %d,%d exceeds LFB\n", x,y );
@@ -234,10 +229,26 @@ V_DrawPatch
       fprintf( stderr, "V_DrawPatch: bad patch (ignored)\n");
       return;
     }
+
+    if (y+SHORT(patch->height) > SCREENHEIGHT)
+    {
+	// Some WADs contain status bar patches that slightly exceed the
+	// bottom of the 320x200 framebuffer due to offsets.
+	fprintf( stderr, "Patch at %d,%d exceeds LFB (clipped)\n", x,y );
+    }
 #endif 
  
+    if (y >= SCREENHEIGHT)
+	return;
+
     if (!scrn)
-	V_MarkRect (x, y, SHORT(patch->width), SHORT(patch->height)); 
+    {
+	int visible_h = SHORT(patch->height);
+	if (y + visible_h > SCREENHEIGHT)
+	    visible_h = SCREENHEIGHT - y;
+	if (visible_h > 0)
+	    V_MarkRect (x, y, SHORT(patch->width), visible_h);
+    }
 
     col = 0; 
     desttop = screens[scrn]+y*SCREENWIDTH+x; 
@@ -254,6 +265,34 @@ V_DrawPatch
 	    source = (byte *)column + 3; 
 	    dest = desttop + column->topdelta*SCREENWIDTH; 
 	    count = column->length; 
+
+	    {
+		int dest_y = y + column->topdelta;
+		if (dest_y < 0)
+		{
+		    int skip = -dest_y;
+		    if (skip >= count)
+		    {
+			column = (column_t *)(  (byte *)column + column->length
+						+ 4 );
+			continue;
+		    }
+		    source += skip;
+		    dest += skip * SCREENWIDTH;
+		    count -= skip;
+		    dest_y = 0;
+		}
+
+		if (dest_y >= SCREENHEIGHT)
+		{
+		    column = (column_t *)(  (byte *)column + column->length
+					    + 4 );
+		    continue;
+		}
+
+		if (dest_y + count > SCREENHEIGHT)
+		    count = SCREENHEIGHT - dest_y;
+	    }
 			 
 	    while (count--) 
 	    { 
@@ -293,16 +332,29 @@ V_DrawPatchFlipped
     if (x<0
 	||x+SHORT(patch->width) >SCREENWIDTH
 	|| y<0
-	|| y+SHORT(patch->height)>SCREENHEIGHT 
 	|| (unsigned)scrn>4)
     {
       fprintf( stderr, "Patch origin %d,%d exceeds LFB\n", x,y );
       I_Error ("Bad V_DrawPatch in V_DrawPatchFlipped");
     }
+
+    if (y+SHORT(patch->height) > SCREENHEIGHT)
+    {
+	fprintf( stderr, "Patch origin %d,%d exceeds LFB (clipped)\n", x,y );
+    }
 #endif 
  
+    if (y >= SCREENHEIGHT)
+	return;
+
     if (!scrn)
-	V_MarkRect (x, y, SHORT(patch->width), SHORT(patch->height)); 
+    {
+	int visible_h = SHORT(patch->height);
+	if (y + visible_h > SCREENHEIGHT)
+	    visible_h = SCREENHEIGHT - y;
+	if (visible_h > 0)
+	    V_MarkRect (x, y, SHORT(patch->width), visible_h);
+    }
 
     col = 0; 
     desttop = screens[scrn]+y*SCREENWIDTH+x; 
@@ -319,6 +371,34 @@ V_DrawPatchFlipped
 	    source = (byte *)column + 3; 
 	    dest = desttop + column->topdelta*SCREENWIDTH; 
 	    count = column->length; 
+
+	    {
+		int dest_y = y + column->topdelta;
+		if (dest_y < 0)
+		{
+		    int skip = -dest_y;
+		    if (skip >= count)
+		    {
+			column = (column_t *)(  (byte *)column + column->length
+						+ 4 );
+			continue;
+		    }
+		    source += skip;
+		    dest += skip * SCREENWIDTH;
+		    count -= skip;
+		    dest_y = 0;
+		}
+
+		if (dest_y >= SCREENHEIGHT)
+		{
+		    column = (column_t *)(  (byte *)column + column->length
+					    + 4 );
+		    continue;
+		}
+
+		if (dest_y + count > SCREENHEIGHT)
+		    count = SCREENHEIGHT - dest_y;
+	    }
 			 
 	    while (count--) 
 	    { 

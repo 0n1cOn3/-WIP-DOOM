@@ -1,6 +1,6 @@
-# DOOM SDL2 (GPL-2.0-only)
+# DOOM SDL2 (GPL-2.0-only) — Modernized & Enhanced
 
-Modernized, single-target build of the original Linux DOOM 1.10 sources. Video, audio, input, and networking run on SDL2 and SDL2_net; music playback ships with bundled libADLMIDI/libOPNMIDI via CMake FetchContent. The top-level CMakeLists.txt is the source of truth.
+Modernized, single-target build of the original Linux DOOM 1.10 sources, plus ongoing enhancements. Video, audio, input, and networking run on SDL2 and SDL2_net; music playback ships with bundled libADLMIDI/libOPNMIDI via CMake FetchContent. The top-level CMakeLists.txt is the source of truth.
 
 If you remember the 90s Linux port: this keeps the gameplay, but drops the period-correct plumbing. No X11 renderer fork, no external `sndserver`, no BSD sockets sprawl. It is DOOM, but built and run like a modern Linux game.
 
@@ -17,6 +17,14 @@ If you remember the 90s Linux port: this keeps the gameplay, but drops the perio
 - Audio: no helper process; SDL2 audio mixer runs in-process.
 - Networking: SDL2_net (with a stub fallback); lobby bootstrap, LAN discovery, and basic mismatch defenses.
 - Build: one CMake build that fetches optional music deps and produces a single modern binary.
+- Enhancements: gameplay/UI/network features beyond the original port (this is no longer “just a port”).
+
+## Recommended Repo Layout (Vanilla vs Enhanced)
+If you want to keep a strict “original port” tree alongside the enhanced one, use one of these workflows:
+- **Two branches + worktrees (recommended):** keep an unmodified `vanilla` branch and develop on `enhanced`. Use `git worktree` so both trees are checked out at once.
+- **Two directories in one repo:** keep an archived `vanilla/` source snapshot (not built), and keep the enhanced tree as the CMake build target.
+
+See `UPSTREAM.md` for a concrete suggested workflow and naming.
 
 ## Requirements
 - CMake ≥ 3.16

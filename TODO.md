@@ -1,6 +1,6 @@
 # Modernization Completion Checklist
 
-**Last Updated:** January 27, 2026
+**Last Updated:** January 28, 2026
 **Current Branch:** master
 **Status Document:** See STATUS.md for detailed progress tracking
 
@@ -9,9 +9,9 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 **Note:** Items marked (✅ DONE) are completed. Items marked (⚠️ PARTIAL) are in progress. Unmarked items are pending.
 
 ## Build and platform hygiene
-- ✅ **DONE:** Collapse duplicate build targets in the root `CMakeLists.txt` and rely on one `add_executable` definition. Ensure options like `NETWORK_BACKEND` and `DOOM_USE_SDL2` are consistent and documented.
-- ✅ **DONE:** Keep `linuxdoom-1.10/CMakeLists.txt` centered on one `DOOM_SOURCES` list and the selected backends: SDL2 video, SDL_net when present, or legacy BSD sockets when explicitly chosen. Continue exercising both `NETWORK_BACKEND` variants and document the backend-dependent compile flags in `BUILDING.md`.
-- ✅ **DONE:** Remove unconditional X11 and legacy SDL1 dependencies from the build graph. Build with SDL2 video and `-DNETWORK_BACKEND=SDL_NET` succeeds without X11 headers.
+- ✅ **DONE:** Collapse duplicate build targets in the root `CMakeLists.txt` and rely on a single `linuxdoom` target.
+- ✅ **DONE:** Keep `linuxdoom-1.10/CMakeLists.txt` centered on one `DOOM_SOURCES` list and the SDL2-only platform backends (SDL2 video/audio/input, SDL2_net networking with stub fallback).
+- ✅ **DONE:** Remove unconditional X11 and legacy SDL1 dependencies from the build graph (SDL2 is the only video/input path).
 - Add sensible feature toggles for optional components (e.g., MIDI, IPv6) and document them in `BUILDING.md`.
 
 ## Video and input
@@ -64,7 +64,7 @@ The following tasks must be completed before the SDL2-focused adaptation is cons
 - Add minimal regression checks (even manual scripts) to cover save/load and demo playback across common WADs.
 
 ## Multiplayer
-- [ ] Multiplayer mode: allow any player to host a server and others to join (UI flow + matchmaking/host discovery + connection UX).
+- ✅ **DONE:** Multiplayer Host/Join flows implemented (in-game menu + lobby + LAN discovery + direct connect).
 
 ## Packaging, docs, and polish
 - ✅ **DONE:** Update `BUILDING.md` with SDL2-only setup steps, dependency lists, and configuration examples (audio config, network backend, build options).

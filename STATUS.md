@@ -1,13 +1,16 @@
 # DOOM Modernization Project - Current Status
 
-**Last Updated:** January 27, 2026
+**Last Updated:** January 28, 2026
 **Repository:** 0n1cOn3/-WIP-DOOM
 **Branch:** master
-**Last Commit:** WIP: Multiplayer lobby UI + async host/join + secure networking
+**Last Commit:** 2b5a533 Fix V_DrawPatch bounds check for status bar patches
 
 ## Executive Summary
 
-This repository contains the legacy Linux Doom sources fully modernized to use SDL2 for all platform interfaces (video, audio, input, networking). The project **core modernization is complete** with SDL2 as the only multimedia backend. Music playback is now supported via ADLMIDI/OPNMIDI with ALSA sequencer fallback. Remaining work focuses on testing, content consolidation, and optional enhancements.
+This repository contains the legacy Linux Doom sources fully modernized to use SDL2 for all platform interfaces (video, audio, input, networking), **plus ongoing gameplay/UI/network enhancements**. The project’s SDL2 modernization is complete with SDL2 as the only multimedia backend. Music playback is supported via ADLMIDI/OPNMIDI with ALSA sequencer fallback. Remaining work focuses on testing, content consolidation, and further enhancements.
+
+### Positioning (Not “Just a Port”)
+This repo now includes behavior-changing improvements (not only platform plumbing). To keep the “original Linux Doom 1.10 port” available as a clean reference, it can be valuable to maintain a separate “vanilla” tree alongside the enhanced tree (see `UPSTREAM.md`).
 
 ## What Has Been Completed ✅
 
@@ -161,7 +164,7 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 - 🔲 Document map format expectations
 
 #### 9. Polish & Packaging
-- 🔲 Update README.TXT with SDL2-only setup
+- ✅ Update README.TXT with SDL2-only setup
 - 🔲 Create changelog for removed backends
 - 🔲 Document migration path for users
 - 🔲 Final packaging and release preparation
@@ -179,27 +182,29 @@ This repository contains the legacy Linux Doom sources fully modernized to use S
 
 ### Build Configuration
 - `/CMakeLists.txt` - Root build file (delegates to subdirectory)
-- `/linuxdoom-1.10/CMakeLists.txt` - Main build logic with backend selection
+- `/linuxdoom-1.10/CMakeLists.txt` - Main build logic (single target, SDL2-only)
 - `/BUILDING.md` - User-facing build instructions
 
 ### Video Backends
 - `/linuxdoom-1.10/i_video_sdl2.c` - **Active SDL2 backend** ✅
-- `/linuxdoom-1.10/i_video_sdl.c` - Legacy SDL1 backend (to be removed)
-- `/linuxdoom-1.10/i_video_x11.c` - Legacy X11 backend (to be removed)
 - `/linuxdoom-1.10/i_video.h` - Video interface header
 - `/linuxdoom-1.10/v_video.c` - Video system implementation
 
 ### Networking
-- `/linuxdoom-1.10/i_net.c` - Network implementation (SDL_net + BSD sockets)
+- `/linuxdoom-1.10/i_net.c` - Network implementation (SDL2_net + stub fallback)
 - `/linuxdoom-1.10/i_net.h` - Network interface
 - `/linuxdoom-1.10/d_net.c` - DOOM network layer
 - `/linuxdoom-1.10/net_harness.c` - Network testing utility
 - `/linuxdoom-1.10/sdl_net_stub/` - Stub headers for SDL_net
 
 ### Audio
-- `/linuxdoom-1.10/i_sound.c` - Sound implementation (needs SDL2 migration)
+- `/linuxdoom-1.10/i_sound.c` - Sound implementation (SDL2 audio)
 - `/linuxdoom-1.10/s_sound.c` - Sound system
-- `/sndserv/` - External sound server (to be removed)
+
+### Legacy (Archived / Not Built)
+- `/legacy/sndserv/` - Original external sound server sources (archived)
+- `/legacy/sersrc/` - Original serial networking setup sources (archived)
+- `/legacy/ipxsrc/` - Original DOS IPX setup sources (archived)
 
 ### Documentation
 - `/TODO.md` - Complete modernization checklist
